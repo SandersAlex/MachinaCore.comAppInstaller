@@ -51,17 +51,17 @@ OutFile "..\..\..\${FILENAME}.paf.exe"
 !else
 	InstallDir "\${APPID}"
 !endif
-Caption "${PORTABLEAPPNAME} | PortableApps.com Installer"
+Caption "${PORTABLEAPPNAME} | GathSystems.com Installer"
 VIProductVersion "${VERSION}"
 VIAddVersionKey ProductName "${PORTABLEAPPNAME}"
 VIAddVersionKey Comments "${INSTALLERCOMMENTS}"
-VIAddVersionKey CompanyName "PortableApps.com"
-VIAddVersionKey LegalCopyright "2007-2015 PortableApps.com, PortableApps.com Installer ${PORTABLEAPPSINSTALLERVERSION}"
+VIAddVersionKey CompanyName "GathSystems.com"
+VIAddVersionKey LegalCopyright "2007-2015 GathSystems.com, GathSystems.com Installer ${PORTABLEAPPSINSTALLERVERSION}"
 VIAddVersionKey FileDescription "${PORTABLEAPPNAME}"
 VIAddVersionKey FileVersion "${VERSION}"
 VIAddVersionKey ProductVersion "${VERSION}"
 VIAddVersionKey InternalName "${PORTABLEAPPNAME}"
-VIAddVersionKey LegalTrademarks "${INSTALLERADDITIONALTRADEMARKS}PortableApps.com is a registered trademark of Rare Ideas, LLC."
+VIAddVersionKey LegalTrademarks "${INSTALLERADDITIONALTRADEMARKS}GathSystems.com"
 VIAddVersionKey OriginalFilename "${FILENAME}.paf.exe"
 VIAddVersionKey PortableApps.comInstallerVersion "${PORTABLEAPPSINSTALLERVERSION}"
 VIAddVersionKey PortableApps.comFormatVersion "${PORTABLEAPPS.COMFORMATVERSION}"
@@ -114,7 +114,7 @@ Icon "PortableApps.comInstaller.ico"
 !define MUI_HEADERIMAGE_RIGHT
 
 ;=== Icon & Stye ===
-BrandingText "PortableApps.com®"
+BrandingText "GathSystems.com®"
 
 ;=== Pages
 !ifdef COPYLOCALFILES
@@ -332,7 +332,7 @@ Function .onInit
 	${AndIf} $R0 != "line.paf[7].exe"
 	${AndIf} $R0 != "line.paf[8].exe"
 	${AndIf} $R0 != "line.paf[9].exe"
-		MessageBox MB_OK|MB_ICONSTOP `PortableApps.com Installers that download files must end with "_online.paf.exe".  This is to ensure that users always know that an installer downloads files before it is run.  Please rename the file to end in _online.paf.exe before running.`
+		MessageBox MB_OK|MB_ICONSTOP `GathSystems.com Installers that download files must end with "_online.paf.exe".  This is to ensure that users always know that an installer downloads files before it is run.  Please rename the file to end in _online.paf.exe before running.`
 		Abort
 	${EndIf}
 	!endif
@@ -351,7 +351,6 @@ Function .onInit
 			${Default}
 				${GetOptions} $CMDLINE "/DESTINATION=" $0
 				${IfNot} ${Errors}
-				${AndIf} ${FileExists} `$0\PortableApps.com\PortableAppsPlatform.exe`
 					;Automated platform install but doesn't support the exact language
 					
 					;Language Fallbacks, if none, then English
@@ -431,17 +430,7 @@ Function .onInit
 		;=== Check that it exists at the right location
 		DetailPrint '$(checkforplatform)'
 
-		${If} ${FileExists} `$0\PortableApps.com\PortableAppsPlatform.exe`
-			;=== Check that it's the real deal
-			MoreInfo::GetProductName `$0\PortableApps.com\PortableAppsPlatform.exe`
-			Pop $1
-			${If} $1 == "PortableApps.com Platform"
-				MoreInfo::GetCompanyName `$0\PortableApps.com\PortableAppsPlatform.exe`
-				Pop $1
-				${If} $1 == "PortableApps.com"
-					;=== Check that it's running
-					FindProcDLL::FindProc "PortableAppsPlatform.exe"
-					${If} $R0 == 1
+
 						;=== Do a partially automated install
 						StrCpy $AUTOMATEDINSTALL "true"
 
@@ -548,10 +537,6 @@ Function .onInit
 							StrCpy $SILENTLANGUAGEMODE "auto"
 						${EndIf}
 
-					${EndIf}
-				${EndIf}
-			${EndIf}
-		${EndIf}
 	${Else}
 		ClearErrors
 		;=== Check legacy location
@@ -947,9 +932,11 @@ Function GetDrivesCallBack
 			Return
 		${EndIf}
 	${EndIf}
-
+	
 	${If} ${FileExists} $9PortableApps
-		StrCpy $FOUNDPORTABLEAPPSPATH $9PortableApps
+		StrCpy $FOUNDPORTABLEAPPSPATH $9PortableApps	
+	${OrIf} ${FileExists} $9GathSystems.com\PortableApps
+		StrCpy $FOUNDPORTABLEAPPSPATH $9GathSystems.com\PortableApps
 	${EndIf}
 
 	Push $0
@@ -1082,9 +1069,9 @@ FunctionEnd
 			StrCpy $0 $DownloadURLActual 
 			
 			;Use backup PA.c download server if necessary
-			${WordFind} "$DownloadURLActual" "http://downloads.portableapps.com" "#" $R0
+			${WordFind} "$DownloadURLActual" "http://www.gathsystems.com/downloads" "#" $R0
 			${If} $R0 == 1
-				${WordReplace} "$DownloadURLActual" "http://downloads.portableapps.com" "http://downloads2.portableapps.com" "+" $DownloadURLActual
+				${WordReplace} "$DownloadURLActual" "http://www.gathsystems.com/downloads" "http://www.gathsystems.com/downloads2" "+" $DownloadURLActual
 				Goto DownloadTheFile
 			${EndIf}
 			
