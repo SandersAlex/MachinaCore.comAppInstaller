@@ -1,4 +1,4 @@
-﻿;Copyright (C) 2006-2015 John T. Haller
+﻿;Copyright (C) 2006-2017 John T. Haller
 
 ;Website: http://PortableApps.com/Installer
 
@@ -20,10 +20,10 @@
 ;Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 !define APPNAME "PortableApps.com Installer"
-!define VER "3.1.0.0"
+!define VER "3.5.5.0"
 !define WEBSITE "PortableApps.com/Installer"
-!define FRIENDLYVER "3.1"
-!define PORTABLEAPPS.COMFORMATVERSION "3.0"
+!define FRIENDLYVER "3.5.5"
+!define PORTABLEAPPS.COMFORMATVERSION "3.5"
 
 ;=== Program Details
 Name "${APPNAME}"
@@ -42,18 +42,14 @@ VIAddVersionKey LegalTrademarks "PortableApps.com is a trademark of Rare Ideas, 
 VIAddVersionKey OriginalFilename "PortableApps.comInstaller.exe"
 
 ;=== Runtime Switches
+Unicode true
+ManifestDPIAware true
 CRCCheck On
 RequestExecutionLevel user
-
-; Best Compression
 SetCompress Auto
 SetCompressor /SOLID lzma
 SetCompressorDictSize 32
 SetDatablockOptimize On
-
-;=== For NSIS3 when ready
-;Unicode true 
-;ManifestDPIAware true
 
 ;=== Include
 ;(Standard)
@@ -65,10 +61,8 @@ SetDatablockOptimize On
 !insertmacro GetParent
 !insertmacro GetSize
 !include LogicLib.nsh
-!include MUI.nsh
-
-;(Addons)
-!include dialogs.nsh
+!include MUI2.nsh
+!include nsDialogs.nsh
 
 ;(Custom)
 !include MoveFiles.nsh
@@ -88,62 +82,189 @@ ShowInstDetails show
 SubCaption 3 " | Processing Files"
 
 ;=== Variables
-Var FINISHTEXT
-Var FINISHTITLE
-Var INSTALLAPPDIRECTORY
-Var SKIPWELCOMEPAGE
-Var AUTOMATICCOMPILE
+;Internal
+Var bolAutomaticCompile
+Var bolErrorOccurred
+Var bolHighContrast
+Var bolInteractiveMode
+Var bolPluginInstaller
+Var bolSkipWelcomePage
+Var bolUseExtractedIcon
+Var browseOptions
+Var chkInteractiveMode
+Var dirAppPath
+Var lblOptionsPageCreateInstaller
+Var pageOptionsCustom
+Var strAppInfoINIFile
+Var strFinishPageText
+Var strFinishPageTitle
+Var strInstallAppDirectory
+Var strInstallerFilename
+Var strInstallerINIFile
 
-Var INCLUDESOURCE
-Var PORTABLEAPPNAME
-Var PORTABLEAPPNAMEDOUBLEDAMPERSANDS
-Var PLUGINNAME
-Var APPID
-Var SHORTNAME
-Var APPLANGUAGE
-Var ALLLANGUAGES
-Var INSTALLERFILENAME
-Var OPTIONALCOMPONENTS
-Var DISPLAYVERSION
-Var COMMONFILESPLUGIN
-Var USEEXTRACTEDICON
-Var INTERACTIVEMODE
-Var EULAVERSION
-
-Var ERROROCCURED
-
-Var AppInfoINIFile
-Var InstallerINIFile
-Var PluginInstaller
-Var OptionalSectionSelectedInstallType
+;Direct Config Read/Write
+Var APPID								;string
+Var ALLLANGUAGES						;boolean
+Var APPLANGUAGE							;string
+Var COMMONFILESPLUGIN					;boolean
+Var DISPLAYVERSION						;string
+Var EULAVERSION							;integer
+Var INCLUDEINSTALLERSOURCE				;boolean
+Var OPTIONALCOMPONENTS					;boolean
+Var OPTIONALSECTIONSELECTEDINSTALLTYPE	;string
+Var PORTABLEAPPNAME						;string
+Var PORTABLEAPPNAMEDOUBLEDAMPERSANDS	;string
+Var PLUGINNAME							;string
+Var SHORTNAME							;string
 
 ;=== Pages
+;Welcome
 !define MUI_WELCOMEFINISHPAGE_BITMAP welcomefinish.bmp
 !define MUI_WELCOMEPAGE_TITLE "PortableApps.com Installer ${FRIENDLYVER}"
-!define MUI_WELCOMEPAGE_TEXT "Welcome to the PortableApps.com Installer.\r\n\r\nThis utility allows you to create a PortableApps.com Installer package for an app in PortableApps.com Format.  Just click next and select the application to package.\r\n\r\nLICENSE: The PortableApps.com Installer can be used with open source and freeware apps provided the installer is unmodified and the app adheres to the current PortableApps.com Format Specification as published at PortableApps.com/development. It may also be used with commercial software by contacting PortableApps.com."
-!define MUI_PAGE_CUSTOMFUNCTION_PRE ShowWelcomeWindow
+!define MUI_WELCOMEPAGE_TEXT "Welcome to the PortableApps.com Installer.$\r$\n$\r$\nThis utility allows you to create a PortableApps.com Installer package for an app in PortableApps.com Format.  Just click next and select the application to package.$\r$\n$\r$\nLICENSE: The PortableApps.com Installer can be used with open source and freeware apps provided the installer is unmodified and the app adheres to the current PortableApps.com Format Specification as published at PortableApps.com/development. It may also be used with commercial software by contacting PortableApps.com."
+!define MUI_PAGE_CUSTOMFUNCTION_PRE WelcomePagePre
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW WelcomePageShow
 !insertmacro MUI_PAGE_WELCOME
-Page custom ShowOptionsWindow LeaveOptionsWindow " | Portable App Folder Selection"
+;Options
+Page custom OptionsPageShow OptionsPageLeave " | Portable App Folder Selection"
+;Install
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW InstallPageShow
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_PAGE_CUSTOMFUNCTION_PRE ShowFinishPage
-!define MUI_FINISHPAGE_TITLE "$FINISHTITLE"
-!define MUI_FINISHPAGE_TEXT "$FINISHTEXT"
+;Finish
+!define MUI_PAGE_CUSTOMFUNCTION_PRE FinishPagePre
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishPageShow
+!define MUI_FINISHPAGE_TITLE "$strFinishPageTitle"
+!define MUI_FINISHPAGE_TEXT "$strFinishPageText"
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_FINISHPAGE_RUN_TEXT "Test Installer"
-!define MUI_FINISHPAGE_RUN_FUNCTION "RunOnFinish"
+!define MUI_FINISHPAGE_RUN_FUNCTION FinishPageRun
 !define MUI_FINISHPAGE_SHOWREADME "$EXEDIR\Data\PortableApps.comInstallerLog.txt"
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "View log file"
-!define MUI_FINISHPAGE_CANCEL_ENABLED
+;!define MUI_FINISHPAGE_CANCEL_ENABLED - Broken in MUI2, hack below
 !insertmacro MUI_PAGE_FINISH
 
 ;=== Languages
 !insertmacro MUI_LANGUAGE "English"
 
-Function .onInit
-	!insertmacro MUI_INSTALLOPTIONS_EXTRACT "InstallerWizardForm.ini"
+;=== Macros
+!define AppInfoFileMissingAskInsertDefault "!insertmacro AppInfoFileMissingAskInsertDefault"
+!macro AppInfoFileMissingAskInsertDefault FileName FileDescription
+	${IfNot} ${FileExists} "$strInstallAppDirectory\App\AppInfo\${FileName}"
+	${AndIf} $bolPluginInstaller != "true"
+		${If} $bolUseExtractedIcon == "true"
+			!if ${FileName} == appicon.ico
+			;Copy the default icon in (appicon_*.png don't get included)
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\${FileName}" "$strInstallAppDirectory\App\AppInfo"
+			!endif
+		${ElseIf} $bolInteractiveMode = true
+		${AndIf} ${Cmd} ${|} MessageBox MB_ICONQUESTION|MB_YESNO "The app does not have ${FileDescription} (${FileName}) in the App\AppInfo directory.  Would you like to use a default icon for test purposes for now?" IDYES ${|}
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\${FileName}" "$strInstallAppDirectory\App\AppInfo"
+			MessageBox MB_ICONINFORMATION "Before releasing this application, please be sure to create a proper ${FileName} app icon in App\AppInfo."
+		${Else}
+			${WriteErrorToLog} "No ${FileName} in $strInstallAppDirectory\App\AppInfo."
+		${EndIf}
+	${EndIf}
+!macroend
 
+!define GetLicenseValueFromAppInfo "!insertmacro GetLicenseValueFromAppInfo"
+!macro GetLicenseValueFromAppInfo Key Prompt
+	ReadINIStr $1 $strAppInfoINIFile License ${Key}
+	${If} $1 == ""
+		${If} $bolInteractiveMode = true
+			${If} ${Cmd} ${|} MessageBox MB_ICONQUESTION|MB_YESNO "License Question: ${Prompt}" IDYES ${|}
+				StrCpy $1 "true"
+			${Else}
+				StrCpy $1 "false"
+			${EndIf}
+			WriteINIStr $strAppInfoINIFile License ${Key} $1
+		${EndIf}
+	${EndIf}
+!macroend
+
+!define GetValueFromAppInfo "!insertmacro GetValueFromAppInfo"
+!macro GetValueFromAppInfo Section Key Prompt DefaultValue Variable Required
+	ReadINIStr ${Variable} $strAppInfoINIFile ${Section} ${Key}
+	${If} ${Variable} == ""
+		${If} $bolInteractiveMode = true
+			;${InputTextBox} "${APPNAME}" "${Prompt}" "${DefaultValue}" "255" "OK" "Cancel" 9
+			StrCpy $9 "${DefaultValue}"
+			DialogsW::InputBox 0 "${APPNAME}" "${Prompt}" "OK" "Cancel" 8 9
+			${If} $8 == 1 ;OK was pressed
+				StrCpy ${Variable} $9
+				WriteINIStr $strAppInfoINIFile ${Section} ${Key} $9
+			!if ${Required} == required
+			${Else}
+				${WriteErrorToLog} "AppInfo.ini - ${Section} - ${Key} is missing."
+			!endif
+			${EndIf}
+		!if ${Required} == required
+		${Else}
+			${WriteErrorToLog} "AppInfo.ini - ${Section} - ${Key} is missing."
+		!endif
+		${EndIf}
+	${EndIf}
+!macroend
+
+!define PageHeaderHackForHighContrast "!insertmacro PageHeaderHackForHighContrast"
+!macro PageHeaderHackForHighContrast
+	!if ${MUI_SYSVERSION} >= 2
+		SetCtlColors $mui.Header.Text 0x000000 0xFFFFFF
+		SetCtlColors $mui.Header.SubText 0x000000 0xFFFFFF
+	!else
+		Push $0
+		FindWindow $0 "#32770" "" $HWNDPARENT
+		GetDlgItem $0 $HWNDPARENT 1037
+		SetCtlColors $0 0x000000 0xFFFFFF
+		GetDlgItem $0 $HWNDPARENT 1038
+		SetCtlColors $0 0x000000 0xFFFFFF
+		Pop $0
+	!endif
+!macroend
+
+!define SetIndividualLanguage "!insertmacro SetIndividualLanguage"
+!macro SetIndividualLanguage IndividualLanguage
+	StrCpy $2 "${IndividualLanguage}"
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "Languages" "$2" "false"
+	${If} $1 == "true"
+	${OrIf} $ALLLANGUAGES == "true"
+		${WriteConfig} USES_$2 "true"
+	${EndIf}
+!macroend
+
+!define TransferInstallerINIToConfig "!insertmacro TransferInstallerINIToConfig"
+!macro TransferInstallerINIToConfig Section Key Required
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile ${Section} ${Key} ""
+	${If} $1 != ""
+		${WriteConfig} ${Key} "$1"
+	!if ${Required} == required
+	${Else}
+		${WriteErrorToLog} "Installer.ini - ${Section} - ${Key} is missing."
+	!endif
+	${EndIf}
+!macroend
+
+!define WriteConfig "!insertmacro WriteConfig"
+!macro WriteConfig Variable Value
+	FileWriteUTF16LE $0 `!define ${Variable} "${Value}"$\r$\n`
+!macroend
+
+!define WriteErrorToLog "!insertmacro WriteErrorToLog"
+!macro WriteErrorToLog ErrorToWrite
+	FileOpen $9 "$EXEDIR\Data\PortableApps.comInstallerLog.txt" a
+	FileSeek $9 0 END
+	FileWriteUTF16LE $9 `ERROR: ${ErrorToWrite}$\r$\n`
+	FileClose $9
+	StrCpy $bolErrorOccurred "true"
+!macroend
+
+
+;=== Main and Page Functions
+Function .onInit
+	;=== Check for high contrast mode from platform
+	ReadEnvStr $bolHighContrast "PortableApps.comHighContrast"
+	
 	;=== Check for settings.ini
 	${IfNot} ${FileExists} $EXEDIR\Data\settings.ini
 		CreateDirectory $EXEDIR\Data
@@ -151,94 +272,152 @@ Function .onInit
 	${EndIf}
 
 	; Get settings
-	ReadINIStr $SKIPWELCOMEPAGE "$EXEDIR\Data\settings.ini" "InstallerWizard" "SkipWelcomePage"
-	ReadINIStr $INSTALLAPPDIRECTORY "$EXEDIR\Data\settings.ini" "InstallerWizard" "INSTALLAPPDIRECTORY"
+	ReadINIStr $bolSkipWelcomePage "$EXEDIR\Data\settings.ini" "InstallerWizard" "SkipWelcomePage"
+	ReadINIStr $strInstallAppDirectory "$EXEDIR\Data\settings.ini" "InstallerWizard" "INSTALLAPPDIRECTORY"
 
 	${GetParameters} $R0
 	${If} $R0 != ""
-		StrCpy $INSTALLAPPDIRECTORY $R0
-		StrCpy $SKIPWELCOMEPAGE "true"
-		StrCpy $AUTOMATICCOMPILE "true"
-		;Strip quotes from $INSTALLAPPDIRECTORY
-		StrCpy $R0 $INSTALLAPPDIRECTORY 1
+		StrCpy $strInstallAppDirectory $R0
+		StrCpy $bolSkipWelcomePage "true"
+		StrCpy $bolAutomaticCompile "true"
+		;Strip quotes from $strInstallAppDirectory
+		StrCpy $R0 $strInstallAppDirectory 1
 		${If} $R0 == `"`
-			StrCpy $INSTALLAPPDIRECTORY $INSTALLAPPDIRECTORY "" 1
-			StrCpy $INSTALLAPPDIRECTORY $INSTALLAPPDIRECTORY -1
+			StrCpy $strInstallAppDirectory $strInstallAppDirectory "" 1
+			StrCpy $strInstallAppDirectory $strInstallAppDirectory -1
 		${EndIf}
 	${EndIf}
 
 	;=== Pre-Fill Path with Directory
-	WriteINIStr $PLUGINSDIR\InstallerWizardForm.ini "Field 2" "State" "$INSTALLAPPDIRECTORY"
+	;WriteINIStr $PLUGINSDIR\InstallerWizardForm.ini "Field 2" "State" "$strInstallAppDirectory"
 FunctionEnd
 
-Function ShowWelcomeWindow
-	${If} $SKIPWELCOMEPAGE == "true"
+Function WelcomePagePre
+	${If} $bolSkipWelcomePage == "true"
 		Abort
 	${EndIf}
 FunctionEnd
 
-Function ShowOptionsWindow
+Function WelcomePageShow
+	SetCtlColors $mui.WelcomePage.Title 0x000000 0xFFFFFF
+	SetCtlColors $mui.WelcomePage.Text 0x000000 0xFFFFFF
+FunctionEnd
+
+Function OptionsPageShow
 	!insertmacro MUI_HEADER_TEXT "PortableApps.com Installer ${FRIENDLYVER}" "the open portable software standard"
-	${If} $AUTOMATICCOMPILE == "true"
-		${If} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini"
-			StrCpy $AppInfoINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini"
-			StrCpy $InstallerINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\installer.ini"
-			StrCpy $PluginInstaller "false"
+	
+	${PageHeaderHackForHighContrast}
+	
+	${If} $bolAutomaticCompile == "true"
+		${If} ${FileExists} "$strInstallAppDirectory\App\AppInfo\appinfo.ini"
+			StrCpy $strAppInfoINIFile "$strInstallAppDirectory\App\AppInfo\appinfo.ini"
+			StrCpy $strInstallerINIFile "$strInstallAppDirectory\App\AppInfo\installer.ini"
+			StrCpy $bolPluginInstaller "false"
 			Abort
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-			StrCpy $AppInfoINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-			StrCpy $InstallerINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-			StrCpy $PluginInstaller "true"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+			StrCpy $strAppInfoINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+			StrCpy $strInstallerINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+			StrCpy $bolPluginInstaller "true"
 			Abort
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\Other\Source\plugininstaller.ini"
-			CreateDirectory "$INSTALLAPPDIRECTORY\App"
-			CreateDirectory "$INSTALLAPPDIRECTORY\App\AppInfo"
-			Rename "$INSTALLAPPDIRECTORY\Other\Source\plugininstaller.ini" "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-			StrCpy $AppInfoINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-			StrCpy $InstallerINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-			StrCpy $PluginInstaller "true"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\Other\Source\plugininstaller.ini"
+			CreateDirectory "$strInstallAppDirectory\App"
+			CreateDirectory "$strInstallAppDirectory\App\AppInfo"
+			Rename "$strInstallAppDirectory\Other\Source\plugininstaller.ini" "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+			StrCpy $strAppInfoINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+			StrCpy $strInstallerINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+			StrCpy $bolPluginInstaller "true"
 			Abort
 		${EndIf}
 	${EndIf}
-	${ReadINIStrWithDefault} $INTERACTIVEMODE "$EXEDIR\Data\settings.ini" "InstallerWizard" "InteractiveMode" "1"
-	WriteINIStr "$PLUGINSDIR\InstallerWizardForm.ini" "Field 3" "State" "$INTERACTIVEMODE"
-	InstallOptions::InitDialog /NOUNLOAD "$PLUGINSDIR\InstallerWizardForm.ini"
-    Pop $0
-    InstallOptions::Show
+	${ReadINIStrWithDefault} $0 "$EXEDIR\Data\settings.ini" "InstallerWizard" "InteractiveMode" "1"
+	${If} $0 == 1
+		StrCpy $bolInteractiveMode true
+	${Else}
+		StrCpy $bolInteractiveMode false
+	${EndIf}
+	
+	nsDialogs::Create 1018
+	Pop $pageOptionsCustom
+	
+	${NSD_CreateLabel} 0 0 100% 13u "Create Installer For:"
+	Pop $lblOptionsPageCreateInstaller
+	
+	${NSD_CreateDirRequest} 0 13u 84% 13u "Choose directory"
+	Pop $dirAppPath
+	${NSD_SetText} $dirAppPath $strInstallAppDirectory
+	
+	${NSD_CreateBrowseButton} 85% 13u 15% 13u "Browse..."
+    Pop $browseOptions
+    ${NSD_OnClick} $browseOptions OptionsPageBrowse
+	
+	${NSD_CreateCheckbox} 0 30u 100% 13u "Interactive Mode (prompts for missing information)"
+	Pop $chkInteractiveMode
+	
+	${If} $bolInteractiveMode == true
+		${NSD_Check} $chkInteractiveMode
+	${Else}
+		${NSD_Uncheck} $chkInteractiveMode
+	${EndIf}
+
+	nsDialogs::Show
 FunctionEnd
 
-Function LeaveOptionsWindow
-	;=== Blank
-	ReadINIStr $INSTALLAPPDIRECTORY $PLUGINSDIR\InstallerWizardForm.ini "Field 2" "State"
-	ReadINIStr $INTERACTIVEMODE "$PLUGINSDIR\InstallerWizardForm.ini" "Field 3" "State"
+Function OptionsPageBrowse
+	${NSD_GetText} $dirAppPath $0
+	${IfNot} ${FileExists} "$0\*.*"
+		${GetParent} $0 $0
+		${IfNot} ${FileExists} "$0\*.*"
+			StrCpy $0 $EXEDIR
+		${EndIf}
+	${EndIf}
+	nsDialogs::SelectFolderDialog /NOUNLOAD "Directory" $0
+    Pop $0
+    ${If} $0 == error
+    ${Else}
+        ${NSD_SetText} $dirAppPath $0
+    ${EndIf}
+FunctionEnd
 
-	StrCmp $INSTALLAPPDIRECTORY "" NoInstallAppDirectoryError
-	${If} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini"
-		StrCpy $AppInfoINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini"
-		StrCpy $InstallerINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\installer.ini"
-		StrCpy $PluginInstaller "false"
-	${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-		StrCpy $AppInfoINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-		StrCpy $InstallerINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-		StrCpy $PluginInstaller "true"
-	${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\Other\Source\plugininstaller.ini"
-		CreateDirectory "$INSTALLAPPDIRECTORY\App"
-		CreateDirectory "$INSTALLAPPDIRECTORY\App\AppInfo"
-		Rename "$INSTALLAPPDIRECTORY\Other\Source\plugininstaller.ini" "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-		StrCpy $AppInfoINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-		StrCpy $InstallerINIFile "$INSTALLAPPDIRECTORY\App\AppInfo\plugininstaller.ini"
-		StrCpy $PluginInstaller "true"
-	${ElseIf} $INTERACTIVEMODE = 1
+Function OptionsPageLeave
+	;=== Blank
+	${NSD_GetText} $dirAppPath $strInstallAppDirectory
+	
+	${NSD_GetState} $chkInteractiveMode $0
+	
+	${If} $0 == ${BST_CHECKED}
+		StrCpy $bolInteractiveMode true
+	${Else}
+		StrCpy $bolInteractiveMode false
+	${EndIf}
+	
+	
+	StrCmp $strInstallAppDirectory "" NoInstallAppDirectoryError
+	${If} ${FileExists} "$strInstallAppDirectory\App\AppInfo\appinfo.ini"
+		StrCpy $strAppInfoINIFile "$strInstallAppDirectory\App\AppInfo\appinfo.ini"
+		StrCpy $strInstallerINIFile "$strInstallAppDirectory\App\AppInfo\installer.ini"
+		StrCpy $bolPluginInstaller "false"
+	${ElseIf} ${FileExists} "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+		StrCpy $strAppInfoINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+		StrCpy $strInstallerINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+		StrCpy $bolPluginInstaller "true"
+	${ElseIf} ${FileExists} "$strInstallAppDirectory\Other\Source\plugininstaller.ini"
+		CreateDirectory "$strInstallAppDirectory\App"
+		CreateDirectory "$strInstallAppDirectory\App\AppInfo"
+		Rename "$strInstallAppDirectory\Other\Source\plugininstaller.ini" "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+		StrCpy $strAppInfoINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+		StrCpy $strInstallerINIFile "$strInstallAppDirectory\App\AppInfo\plugininstaller.ini"
+		StrCpy $bolPluginInstaller "true"
+	${ElseIf} $bolInteractiveMode = true
 		; No AppInfo found
-		${IfNot} ${FileExists} "$INSTALLAPPDIRECTORY\*.exe"
-		${AndIf} $PluginInstaller != "true"
+		${IfNot} ${FileExists} "$strInstallAppDirectory\*.exe"
+		${AndIf} $bolPluginInstaller != "true"
 			Goto NoInstallAppDirectoryError
 		${EndIf}
 
 		MessageBox MB_ICONQUESTION|MB_YESNO "The app does not appear to have the necessary files within the App\AppInfo directory required by PortableApps.com Format.  Would you like to create the settings interactively and use a set of default icons for now for testing?" IDNO NoInstallAppDirectoryError
 
 			;Find EXE file
-			FindFirst $2 $3 "$INSTALLAPPDIRECTORY\*.exe"
+			FindFirst $2 $3 "$strInstallAppDirectory\*.exe"
 			StrCpy $4 0
 
 			${DoWhile} $3 != ""
@@ -253,13 +432,13 @@ Function LeaveOptionsWindow
 				Abort
 			${EndIf}
 
-			CreateDirectory "$INSTALLAPPDIRECTORY\App\AppInfo"
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\appicon_16.png" "$INSTALLAPPDIRECTORY\App\AppInfo"
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\appicon_32.png" "$INSTALLAPPDIRECTORY\App\AppInfo"
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\appicon.ico" "$INSTALLAPPDIRECTORY\App\AppInfo"
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\appinfo.ini" "$INSTALLAPPDIRECTORY\App\AppInfo"
-			WriteINIStr "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini" "Format" "Version" "${PORTABLEAPPS.COMFORMATVERSION}"
-			WriteINIStr "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini" "Control" "Start" "$5"
+			CreateDirectory "$strInstallAppDirectory\App\AppInfo"
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\appicon_16.png" "$strInstallAppDirectory\App\AppInfo"
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\appicon_32.png" "$strInstallAppDirectory\App\AppInfo"
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\appicon.ico" "$strInstallAppDirectory\App\AppInfo"
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\appinfo.ini" "$strInstallAppDirectory\App\AppInfo"
+			WriteINIStr "$strInstallAppDirectory\App\AppInfo\appinfo.ini" "Format" "Version" "${PORTABLEAPPS.COMFORMATVERSION}"
+			WriteINIStr "$strInstallAppDirectory\App\AppInfo\appinfo.ini" "Control" "Start" "$5"
 
 			MessageBox MB_ICONINFORMATION "Before releasing this application, please be sure to create a set of proper icons in App\AppInfo."
 	${Else}
@@ -267,8 +446,12 @@ Function LeaveOptionsWindow
 	${EndIf}
 
 	; Store settings
-	WriteINIStr "$EXEDIR\Data\settings.ini" "InstallerWizard" "INSTALLAPPDIRECTORY" $INSTALLAPPDIRECTORY
-	WriteINIStr "$EXEDIR\Data\settings.ini" "InstallerWizard" "InteractiveMode" $INTERACTIVEMODE
+	WriteINIStr "$EXEDIR\Data\settings.ini" "InstallerWizard" "INSTALLAPPDIRECTORY" $strInstallAppDirectory
+	${If} $bolInteractiveMode == true
+		WriteINIStr "$EXEDIR\Data\settings.ini" "InstallerWizard" "InteractiveMode" 1
+	${Else}
+		WriteINIStr "$EXEDIR\Data\settings.ini" "InstallerWizard" "InteractiveMode" 0
+	${EndIf}
 	Goto EndLeaveOptionsWindow
 
 	NoInstallAppDirectoryError:
@@ -278,142 +461,91 @@ Function LeaveOptionsWindow
 	EndLeaveOptionsWindow:
 FunctionEnd
 
-!define SetIndividualLanguage "!insertmacro SetIndividualLanguage"
-
-!define WriteConfig "!insertmacro WriteConfig"
-
-!macro WriteConfig Variable Value
-	FileWriteUTF16LE $0 `!define ${Variable} "${Value}"$\r$\n`
-!macroend
-
-!macro SetIndividualLanguage IndividualLanguage
-	StrCpy $2 "${IndividualLanguage}"
-	${ReadINIStrWithDefault} $1 $InstallerINIFile "Languages" "$2" "false"
-	${If} $1 == "true"
-	${OrIf} $ALLLANGUAGES == "true"
-		${WriteConfig} USES_$2 "true"
-	${EndIf}
-!macroend
-
-!define WriteErrorToLog "!insertmacro WriteErrorToLog"
-
-!macro WriteErrorToLog ErrorToWrite
-	FileOpen $9 "$EXEDIR\Data\PortableApps.comInstallerLog.txt" a
-	FileSeek $9 0 END
-	FileWriteUTF16LE $9 `ERROR: ${ErrorToWrite}$\r$\n`
-	FileClose $9
-	StrCpy $ERROROCCURED "true"
-!macroend
-
-!define TransferInstallerINIToConfig "!insertmacro TransferInstallerINIToConfig"
-
-!macro TransferInstallerINIToConfig Section Key Required
-	${ReadINIStrWithDefault} $1 $InstallerINIFile ${Section} ${Key} ""
-	${If} $1 != ""
-		${WriteConfig} ${Key} "$1"
-	!if ${Required} == required
-	${Else}
-		${WriteErrorToLog} "Installer.ini - ${Section} - ${Key} is missing."
-	!endif
-	${EndIf}
-!macroend
+Function InstallPageShow
+	${PageHeaderHackForHighContrast}
+FunctionEnd
 
 Section Main
 	!insertmacro MUI_HEADER_TEXT "PortableApps.com Installer ${FRIENDLYVER}" "the open portable software standard"
 	${TBProgress} 33
 	SetDetailsPrint ListOnly
-	DetailPrint "App: $INSTALLAPPDIRECTORY"
+	DetailPrint "App: $strInstallAppDirectory"
 	DetailPrint " "
 	;FindWindow $0 "#32770" "" $HWNDPARENT
 	;FindWindow $1 "msctls_progress32" "" $0
 	
-	;DetailPrint "Hanlde: $1"
-	RealProgress::SetProgress /NOUNLOAD 1
-	RealProgress::GradualProgress /NOUNLOAD 2 1 90 "Processing complete."
+	;DetailPrint "Handle: $1"
+	${If} $bolAutomaticCompile != "true"
+		;Work around for bug where Finish auto-closes and doesn't call OnGUIEnd
+		RealProgress::SetProgress /NOUNLOAD 1
+		RealProgress::GradualProgress /NOUNLOAD 2 1 90 "Processing complete."
+	${EndIf}
 	DetailPrint "Generating installer code..."
 	SetDetailsPrint none
 
 	;Ensure the source directory exists
-	CreateDirectory "$INSTALLAPPDIRECTORY\Other\Source"
+	CreateDirectory "$strInstallAppDirectory\Other\Source"
 
 	;Remove any existing installer files (leaving custom intact)
-	RMDir /r "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerLanguages"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.bmp"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.ico"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.nsi"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfig-EXAMPLE.nsh"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfig.nsh"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerDumpLogToFile.nsh"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerHeader.bmp"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerMoveFiles.nsh"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerStrRep.nsh"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerHeaderRTL.bmp"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPlugin.nsi"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPluginConfig.nsh"
-	Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerTBProgress.nsh"
+	RMDir /r "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerLanguages"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.bmp"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.ico"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.nsi"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfig-EXAMPLE.nsh"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfig.nsh"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerDumpLogToFile.nsh"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeader.bmp"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerMoveFiles.nsh"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerStrRep.nsh"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeaderRTL.bmp"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPlugin.nsi"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPluginConfig.nsh"
+	Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerTBProgress.nsh"
 
 	;Copy the current PortableApps.com Installer in
-	CopyFiles /SILENT "$EXEDIR\App\installer\*.*" "$INSTALLAPPDIRECTORY\Other\Source"
-	${If} $PluginInstaller == "true"
-		Rename "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.nsi" "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPlugin.nsi"
-		Rename "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfig.nsh" "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPluginConfig.nsh"
+	CopyFiles /SILENT "$EXEDIR\App\installer\*.*" "$strInstallAppDirectory\Other\Source"
+	${If} $bolPluginInstaller == "true"
+		Rename "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.nsi" "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPlugin.nsi"
+		Rename "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfig.nsh" "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPluginConfig.nsh"
 	${EndIf}
 
 	;Generate the configuration file
 	Delete "$EXEDIR\Data\PortableApps.comInstallerLog.txt"
 
 	;Determine icon type
-	${ReadINIStrWithDefault} $1 $AppInfoINIFile "Control" "ExtractIcon" ""
+	${ReadINIStrWithDefault} $1 $strAppInfoINIFile "Control" "ExtractIcon" ""
 	${If} $1 != ""
-		StrCpy $USEEXTRACTEDICON "true"
+		StrCpy $bolUseExtractedIcon "true"
 	${EndIf}
 
 	;Check for content
-	${IfNot} ${FileExists} "$INSTALLAPPDIRECTORY\*.exe"
-	${AndIf} $PluginInstaller != "true"
-		${WriteErrorToLog} "No EXE in $INSTALLAPPDIRECTORY."
+	${IfNot} ${FileExists} "$strInstallAppDirectory\*.exe"
+	${AndIf} $bolPluginInstaller != "true"
+		${WriteErrorToLog} "No EXE in $strInstallAppDirectory."
 	${EndIf}
 
-	${IfNot} ${FileExists} "$INSTALLAPPDIRECTORY\help.html"
-	${AndIf} $PluginInstaller != "true"
-		${WriteErrorToLog} "No help.html in $INSTALLAPPDIRECTORY."
+	${IfNot} ${FileExists} "$strInstallAppDirectory\help.html"
+	${AndIf} $bolPluginInstaller != "true"
+		${WriteErrorToLog} "No help.html in $strInstallAppDirectory."
 	${EndIf}
 
-	!macro AppInfoFileMissingAskInsertDefault FileName FileDescription
-	${IfNot} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\${FileName}"
-	${AndIf} $PluginInstaller != "true"
-		${If} $USEEXTRACTEDICON == "true"
-			!if ${FileName} == appicon.ico
-			;Copy the default icon in (appicon_*.png don't get included)
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\${FileName}" "$INSTALLAPPDIRECTORY\App\AppInfo"
-			!endif
-		${ElseIf} $INTERACTIVEMODE = 1
-		${AndIf} ${Cmd} ${|} MessageBox MB_ICONQUESTION|MB_YESNO "The app does not have ${FileDescription} (${FileName}) in the App\AppInfo directory.  Would you like to use a default icon for test purposes for now?" IDYES ${|}
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\${FileName}" "$INSTALLAPPDIRECTORY\App\AppInfo"
-			MessageBox MB_ICONINFORMATION "Before releasing this application, please be sure to create a proper ${FileName} app icon in App\AppInfo."
-		${Else}
-			${WriteErrorToLog} "No ${FileName} in $INSTALLAPPDIRECTORY\App\AppInfo."
-		${EndIf}
-	${EndIf}
-	!macroend
+	${AppInfoFileMissingAskInsertDefault} appicon_16.png "a 16x16 PNG icon"
+	${AppInfoFileMissingAskInsertDefault} appicon_32.png "a 32x32 PNG icon"
+	${AppInfoFileMissingAskInsertDefault} appicon.ico    "an icon"
 
-	!insertmacro AppInfoFileMissingAskInsertDefault appicon_16.png "a 16x16 PNG icon"
-	!insertmacro AppInfoFileMissingAskInsertDefault appicon_32.png "a 32x32 PNG icon"
-	!insertmacro AppInfoFileMissingAskInsertDefault appicon.ico    "an icon"
-
-	${If} $PluginInstaller == "true"
-		FileOpen $0 "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPluginConfig.nsh" a
+	${If} $bolPluginInstaller == "true"
+		FileOpen $0 "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPluginConfig.nsh" a
 	${Else}
-		FileOpen $0 "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfig.nsh" a
+		FileOpen $0 "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfig.nsh" a
 	${EndIf}
 	FileSeek $0 0 END
 	FileWriteUTF16LE $0 `;Code generated by PortableApps.com Installer ${FRIENDLYVER}.  DO NOT EDIT.$\r$\n$\r$\n`
 
 	;PortableApps.comFormat Version
-	${ReadINIStrWithDefault} $1 $AppInfoINIFile "Format" "Version" ""
+	${ReadINIStrWithDefault} $1 $strAppInfoINIFile "Format" "Version" ""
 	${If} $1 == "0.9.8"
 		;Preserve old installer config in case it's needed
-		Rename "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfig.nsh" "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfigOld.nsh"
+		Rename "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfig.nsh" "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfigOld.nsh"
 
 		;Autogenerate App ID is handled normally when interactive
 
@@ -423,42 +555,40 @@ Section Main
 		StrCpy $1 "0.90"
 	${EndIf}
 	${If} $1 == "0.90"
-		;0.90 to 0.91 needs no changes, so it brings it to 0.91
-		StrCpy $1 "0.91"
-	${EndIf}
-	${If} $1 == "0.91"
-		;0.91 to 1.0 needs no changes, so it brings it to 1.0
-		StrCpy $1 "1.0"
-	${EndIf}
-	${If} $1 == "1.0"
+	${OrIf} $1 == "0.91"
+	${OrIf} $1 == "1.0"
 	${OrIf} $1 == "2.0"
-		;1.0 to 2.0 needs no changes, so it brings it to 2.0
-		WriteINIStr $AppInfoINIFile "Format" "Version" "${PORTABLEAPPS.COMFORMATVERSION}"
+	${OrIf} $1 == "3.0"
+		;Versions from 0.90 and later can be moved forward to 3.2
+		;ExtractTo must be updated to AdvancedExtractTo
+		${ReadINIStrWithDefault} $2 $strInstallerINIFile "DownloadFiles" "Extract1To" ""
+		${If} $2 != ""
+			;Update from ExtractTo to AdvancedExtractTo
+			${For} $R1 1 10
+				${ReadINIStrWithDefault} $2 $strInstallerINIFile "DownloadFiles" "Extract$R1To" ""
+				${If} $2 != ""
+					WriteINIStr $strInstallerINIFile "DownloadFiles" "AdvancedExtract$R1To" "$2"
+					${ReadINIStrWithDefault} $3 $strInstallerINIFile "DownloadFiles" "Extract$R1File" ""
+					WriteINIStr $strInstallerINIFile "DownloadFiles" "AdvancedExtract$R1Filter" "$3"
+					DeleteINIStr $strInstallerINIFile "DownloadFiles" "Extract$R1To"
+					DeleteINIStr $strInstallerINIFile "DownloadFiles" "Extract$R1File"
+				${EndIf}
+			${Next}
+		${EndIf}
+		StrCpy $1 "3.2"
+	${EndIf}
+	${If} $1 == "3.2"
+	${OrIf} $1 == "3.3"
+	${OrIf} $1 == "3.4"
+		;No changes from 3.2/3.3/3.4 to 3.5
+		StrCpy $1 "3.5"
+		WriteINIStr $strAppInfoINIFile "Format" "Version" "${PORTABLEAPPS.COMFORMATVERSION}"
 	${EndIf}
 
-	!macro GetValueFromAppInfo Section Key Prompt DefaultValue Variable Required
-		ReadINIStr ${Variable} $AppInfoINIFile ${Section} ${Key}
-		${If} ${Variable} == ""
-			${If} $INTERACTIVEMODE = 1
-				${InputTextBox} "${APPNAME}" "${Prompt}" "${DefaultValue}" "255" "OK" "Cancel" 9
-				${If} $9 != ""
-					StrCpy ${Variable} $9
-					WriteINIStr $AppInfoINIFile ${Section} ${Key} $9
-				!if ${Required} == required
-				${Else}
-					${WriteErrorToLog} "AppInfo.ini - ${Section} - ${Key} is missing."
-				!endif
-				${EndIf}
-			!if ${Required} == required
-			${Else}
-				${WriteErrorToLog} "AppInfo.ini - ${Section} - ${Key} is missing."
-			!endif
-			${EndIf}
-		${EndIf}
-	!macroend
+
 
 	;App Name
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		Name \
 		"Enter the portable app's name (e.g. FileZilla Portable):" \
@@ -466,7 +596,7 @@ Section Main
 		$PORTABLEAPPNAME \
 		required
 
-	${If} $PluginInstaller != "true"
+	${If} $bolPluginInstaller != "true"
 		${WriteConfig} PORTABLEAPPNAME "$PORTABLEAPPNAME"
 		${WordReplace} $PORTABLEAPPNAME "&" "~~~@@@~~~" + $PORTABLEAPPNAMEDOUBLEDAMPERSANDS
 		${WordReplace} $PORTABLEAPPNAMEDOUBLEDAMPERSANDS "~~~@@@~~~" "&&" + $PORTABLEAPPNAMEDOUBLEDAMPERSANDS
@@ -474,8 +604,8 @@ Section Main
 	${EndIf}
 
 	;Plugin Name
-	${If} $PluginInstaller == "true"
-		!insertmacro GetValueFromAppInfo \
+	${If} $bolPluginInstaller == "true"
+		${GetValueFromAppInfo} \
 			Details \
 			PluginName \
 			"Enter the plugin's name (e.g. Acme Plugin):" \
@@ -488,7 +618,7 @@ Section Main
 		${WordReplace} $PLUGINNAME "&" "~~~@@@~~~" + $PORTABLEAPPNAMEDOUBLEDAMPERSANDS
 		${WordReplace} $PORTABLEAPPNAMEDOUBLEDAMPERSANDS "~~~@@@~~~" "&&" + $PORTABLEAPPNAMEDOUBLEDAMPERSANDS
 		${WriteConfig} PORTABLEAPPNAMEDOUBLEDAMPERSANDS "$PORTABLEAPPNAMEDOUBLEDAMPERSANDS"
-		${ReadINIStrWithDefault} $1 $AppInfoINIFile "Details" "PluginType" "App"
+		${ReadINIStrWithDefault} $1 $strAppInfoINIFile "Details" "PluginType" "App"
 		${If} $1 == "CommonFiles"
 			StrCpy $COMMONFILESPLUGIN "true"
 			${WriteConfig} COMMONFILESPLUGIN "true"
@@ -518,7 +648,7 @@ Section Main
 	${WordReplace} $8               "="   "-" + $8
 	${WordReplace} $8               ","   "." + $8
 	${WordReplace} $8               ";"   "." + $8
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		AppID \
 		"Enter the portable app's App ID (usually the name with no spaces or symbols):" \
@@ -530,7 +660,7 @@ Section Main
 	StrCpy $SHORTNAME $APPID
 
 	;Publisher
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		Publisher \
 		"Enter the publisher ('App Developer && PortableApps.com' for our apps):" \
@@ -539,7 +669,7 @@ Section Main
 		optional
 
 	;Homepage
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		Homepage \
 		"Enter the app's homepage (e.g. portableapps.com):" \
@@ -548,7 +678,7 @@ Section Main
 		optional
 
 	;Category
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		Category \
 		"Enter the app's category *exactly* (Accessibility, Development, Education, Games, Graphics && Pictures, Internet, Music && Video, Office, Operating Systems, Utilities):" \
@@ -557,7 +687,7 @@ Section Main
 		optional
 
 	;Description
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		Description \
 		"Enter the app's description (e.g. Simple FTP program.):" \
@@ -566,7 +696,7 @@ Section Main
 		optional
 
 	;Language
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Details \
 		Language \
 		"Enter the portable app's language as expected by NSIS (e.g. English or Multilingual):" \
@@ -577,31 +707,17 @@ Section Main
 		StrCpy $APPLANGUAGE "English"
 	${EndIf}
 
-	!macro GetLicenseValueFromAppInfo Key Prompt
-		ReadINIStr $1 $AppInfoINIFile License ${Key}
-		${If} $1 == ""
-			${If} $INTERACTIVEMODE = 1
-				${If} ${Cmd} ${|} MessageBox MB_ICONQUESTION|MB_YESNO "License Question: ${Prompt}" IDYES ${|}
-					StrCpy $1 "true"
-				${Else}
-					StrCpy $1 "false"
-				${EndIf}
-				WriteINIStr $AppInfoINIFile License ${Key} $1
-			${EndIf}
-		${EndIf}
-	!macroend
-
 	;License
-	!insertmacro GetLicenseValueFromAppInfo Shareable     "Can this application be legally shared from one user to another?"
-	!insertmacro GetLicenseValueFromAppInfo OpenSource    "Is this application 100% open source under an OSI-approved license?"
-	!insertmacro GetLicenseValueFromAppInfo Freeware      "Is this application freeware (it can be used without payment)?"
-	!insertmacro GetLicenseValueFromAppInfo CommercialUse "Can this app be used in a commercial environment?"
+	${GetLicenseValueFromAppInfo} Shareable     "Can this application be legally shared from one user to another?"
+	${GetLicenseValueFromAppInfo} OpenSource    "Is this application 100% open source under an OSI-approved license?"
+	${GetLicenseValueFromAppInfo} Freeware      "Is this application freeware (it can be used without payment)?"
+	${GetLicenseValueFromAppInfo} CommercialUse "Can this app be used in a commercial environment?"
 
 	;EULA Version
-	${ReadINIStrWithDefault} $EULAVERSION $AppInfoINIFile "License" "EULAVersion" ""
+	${ReadINIStrWithDefault} $EULAVERSION $strAppInfoINIFile "License" "EULAVersion" ""
 
 	;Display Version
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Version \
 		DisplayVersion \
 		"Enter the portable app's display version (e.g. 1.0 or 2.2 Beta 1):" \
@@ -610,7 +726,7 @@ Section Main
 		required
 
 	;Package Version
-	!insertmacro GetValueFromAppInfo \
+	${GetValueFromAppInfo} \
 		Version \
 		PackageVersion \
 		"Enter the portable app's package version as all numbers in the form X.X.X.X (e.g. 1.0.0.0 or 2.2.0.1):" \
@@ -621,73 +737,76 @@ Section Main
 	${WriteConfig} VERSION "$1"
 
 	;Filename should only be alpha, numbers as well as:  + . - _
-	${If} $PluginInstaller == "true"
-		StrCpy $INSTALLERFILENAME "$PLUGINNAME_$DISPLAYVERSION"
+	${If} $bolPluginInstaller == "true"
+		StrCpy $strInstallerFilename "$PLUGINNAME_$DISPLAYVERSION"
 	${Else}
-		StrCpy $INSTALLERFILENAME "$APPID_$DISPLAYVERSION"
+		StrCpy $strInstallerFilename "$APPID_$DISPLAYVERSION"
 	${EndIf}
 
 	${If} $APPLANGUAGE != "Multilingual"
-		StrCpy $INSTALLERFILENAME "$INSTALLERFILENAME_$APPLANGUAGE"
+		StrCpy $strInstallerFilename "$strInstallerFilename_$APPLANGUAGE"
 	${EndIf}
 
-	${WordReplace} $INSTALLERFILENAME " "   "_"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "("   ""     + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME ")"   ""     + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "["   ""     + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "]"   ""     + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "~"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "&"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "#"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "$\"" "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "*"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "/"   "_"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "\"   "_"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME ":"   "."    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "<"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME ">"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "?"   ""     + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "|"   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "="   "-"    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME ","   "."    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME ";"   "."    + $INSTALLERFILENAME
-	${WordReplace} $INSTALLERFILENAME "+"   "Plus" + $INSTALLERFILENAME
+	${WordReplace} $strInstallerFilename " "   "_"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "("   ""     + $strInstallerFilename
+	${WordReplace} $strInstallerFilename ")"   ""     + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "["   ""     + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "]"   ""     + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "~"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "&"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "#"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "$\"" "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "*"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "/"   "_"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "\"   "_"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename ":"   "."    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "<"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename ">"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "?"   ""     + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "|"   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "="   "-"    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename ","   "."    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename ";"   "."    + $strInstallerFilename
+	${WordReplace} $strInstallerFilename "+"   "Plus" + $strInstallerFilename
 
-	${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "DownloadURL" ""
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "DownloadURL" ""
 	${If} $1 != ""
-		StrCpy $INSTALLERFILENAME "$INSTALLERFILENAME_online"
+		StrCpy $strInstallerFilename "$strInstallerFilename_online"
 	${EndIf}
 
-	${WriteConfig} FILENAME "$INSTALLERFILENAME"
+	${WriteConfig} FILENAME "$strInstallerFilename"
 
 	
-	${ReadINIStrWithDefault} $1 $AppInfoINIFile "Control" "Start" ""
+	${ReadINIStrWithDefault} $1 $strAppInfoINIFile "Control" "Start" ""
 		${If} $1 == ""
 		${WriteErrorToLog} "AppInfo.ini - Control - Start is missing."
 	${Else}
 		${WriteConfig} FINISHPAGERUN "$1"
 	${EndIf}
-	${IfNot} ${FileExists} "$INSTALLAPPDIRECTORY\$1"
-	${AndIf} $PluginInstaller != "true"
+	${IfNot} ${FileExists} "$strInstallAppDirectory\$1"
+	${AndIf} $bolPluginInstaller != "true"
 		${WriteErrorToLog} "AppInfo.ini - Control - Start=$1, file is missing."
 	${EndIf}
 
-	${ReadINIStrWithDefault} $2 $InstallerINIFile "CheckRunning" "CloseEXE" "$1"
+	${ReadINIStrWithDefault} $2 $strInstallerINIFile "CheckRunning" "CloseEXE" "$1"
 	${WriteConfig} CHECKRUNNING "$2"
-	${ReadINIStrWithDefault} $1 $InstallerINIFile "CheckRunning" "CloseName" "$PORTABLEAPPNAME"
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "CheckRunning" "CloseName" "$PORTABLEAPPNAME"
 	${WriteConfig} CLOSENAME "$1"
-	${ReadINIStrWithDefault} $1 $AppInfoINIFile "SpecialPaths" "Plugins" "NONE"
+	${ReadINIStrWithDefault} $1 $strAppInfoINIFile "SpecialPaths" "Plugins" "NONE"
 	${WriteConfig} ADDONSDIRECTORYPRESERVE "$1"
 	${WriteConfig} INSTALLERCOMMENTS "For additional details, visit PortableApps.com"
-	${ReadINIStrWithDefault} $1 $AppInfoINIFile "Details" "Trademarks" ""
+	${ReadINIStrWithDefault} $1 $strAppInfoINIFile "Details" "Trademarks" ""
 	${If} $1 != ""
+		;Replace double quotes with single quotes
+		${WordReplace} $1 '"' "'" "+" $1
+		WriteINIStr $strAppInfoINIFile "Details" "Trademarks" $1
 		StrCpy $1 "$1. "
 	${EndIf}
 	${WriteConfig} INSTALLERADDITIONALTRADEMARKS "$1"
 
 	;Source Code
-	${ReadINIStrWithDefault} $INCLUDESOURCE $InstallerINIFile "Source" "IncludeInstallerSource" "false"
-	${If} $INCLUDESOURCE == "true"
+	${ReadINIStrWithDefault} $INCLUDEINSTALLERSOURCE $strInstallerINIFile "Source" "IncludeInstallerSource" "false"
+	${If} $INCLUDEINSTALLERSOURCE == "true"
 		${WriteConfig} INCLUDEINSTALLERSOURCE "true"
 	${EndIf}
 
@@ -697,7 +816,7 @@ Section Main
 	${Else}
 		${WriteConfig} INSTALLERMULTILINGUAL "true"
 
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "Languages" "English" ""
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "Languages" "English" ""
 		${If} $1 == ""
 			StrCpy $ALLLANGUAGES "true"
 		${EndIf}
@@ -708,22 +827,26 @@ Section Main
 		${SetIndividualLanguage} "ALBANIAN"
 		${SetIndividualLanguage} "ARABIC"
 		${SetIndividualLanguage} "ARMENIAN"
+		${SetIndividualLanguage} "ASTURIAN"
 		${SetIndividualLanguage} "BASQUE"
 		${SetIndividualLanguage} "BELARUSIAN"
 		${SetIndividualLanguage} "BOSNIAN"
 		${SetIndividualLanguage} "BRETON"
 		${SetIndividualLanguage} "BULGARIAN"
 		${SetIndividualLanguage} "CATALAN"
+		${SetIndividualLanguage} "CIBEMBA"
 		${SetIndividualLanguage} "CROATIAN"
 		${SetIndividualLanguage} "CZECH"
 		${SetIndividualLanguage} "DANISH"
 		${SetIndividualLanguage} "DUTCH"
+		${SetIndividualLanguage} "EFIK"
 		${SetIndividualLanguage} "ESPERANTO"
 		${SetIndividualLanguage} "ESTONIAN"
 		${SetIndividualLanguage} "FARSI"
 		${SetIndividualLanguage} "FINNISH"
 		${SetIndividualLanguage} "FRENCH"
 		${SetIndividualLanguage} "GALICIAN"
+		${SetIndividualLanguage} "GEORGIAN"
 		${SetIndividualLanguage} "GERMAN"
 		${SetIndividualLanguage} "GREEK"
 		${SetIndividualLanguage} "HEBREW"
@@ -733,16 +856,19 @@ Section Main
 		${SetIndividualLanguage} "IRISH"
 		${SetIndividualLanguage} "ITALIAN"
 		${SetIndividualLanguage} "JAPANESE"
+		${SetIndividualLanguage} "KHMER"
 		${SetIndividualLanguage} "KOREAN"
 		${SetIndividualLanguage} "KURDISH"
 		${SetIndividualLanguage} "LATVIAN"
 		${SetIndividualLanguage} "LITHUANIAN"
 		${SetIndividualLanguage} "LUXEMBOURGISH"
 		${SetIndividualLanguage} "MACEDONIAN"
+		${SetIndividualLanguage} "MALAGASY"
 		${SetIndividualLanguage} "MALAY"
 		${SetIndividualLanguage} "MONGOLIAN"
 		${SetIndividualLanguage} "NORWEGIAN"
 		${SetIndividualLanguage} "NORWEGIANNYNORSK"
+		${SetIndividualLanguage} "PASHTO"
 		${SetIndividualLanguage} "POLISH"
 		${SetIndividualLanguage} "PORTUGUESE"
 		${SetIndividualLanguage} "PORTUGUESEBR"
@@ -755,36 +881,40 @@ Section Main
 		${SetIndividualLanguage} "SLOVENIAN"
 		${SetIndividualLanguage} "SPANISH"
 		${SetIndividualLanguage} "SPANISHINTERNATIONAL"
+		${SetIndividualLanguage} "SWAHILI"
 		${SetIndividualLanguage} "SWEDISH"
 		${SetIndividualLanguage} "THAI"
 		${SetIndividualLanguage} "TRADCHINESE"
 		${SetIndividualLanguage} "TURKISH"
 		${SetIndividualLanguage} "UKRAINIAN"
 		${SetIndividualLanguage} "UZBEK"
+		${SetIndividualLanguage} "VALENCIAN"
+		${SetIndividualLanguage} "VIETNAMESE"
 		${SetIndividualLanguage} "WELSH"
+		${SetIndividualLanguage} "YORUBA"
 	${EndIf}
 
 	;EULA
-	${If} $PluginInstaller == "true"
-		${If} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\PluginEULA.txt"
+	${If} $bolPluginInstaller == "true"
+		${If} ${FileExists} "$strInstallAppDirectory\App\AppInfo\PluginEULA.txt"
 			${WriteConfig} LICENSEAGREEMENT "PluginEULA.txt"
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\Other\Source\PluginEULA.txt"
-			Rename "$INSTALLAPPDIRECTORY\Other\Source\PluginEULA.txt" "$INSTALLAPPDIRECTORY\App\AppInfo\PluginEULA.txt"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\Other\Source\PluginEULA.txt"
+			Rename "$strInstallAppDirectory\Other\Source\PluginEULA.txt" "$strInstallAppDirectory\App\AppInfo\PluginEULA.txt"
 			${WriteConfig} LICENSEAGREEMENT "PluginEULA.txt"
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\Other\Source\PluginEULA.rtf"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\Other\Source\PluginEULA.rtf"
 			${WriteErrorToLog} "EULA - Other\Source\PluginEULA.rtf is no longer supported.  Use App\AppInfo\PluginEULA.txt instead."
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\PluginEULA.rtf"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\App\AppInfo\PluginEULA.rtf"
 			${WriteErrorToLog} "EULA - App\AppInfo\PluginEULA.rtf is not supported.  Use App\AppInfo\PluginEULA.txt instead."
 		${EndIf}
 	${Else}
-		${If} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\EULA.txt"
+		${If} ${FileExists} "$strInstallAppDirectory\App\AppInfo\EULA.txt"
 			${WriteConfig} LICENSEAGREEMENT "eula.txt"
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\Other\Source\EULA.txt"
-			Rename "$INSTALLAPPDIRECTORY\Other\Source\EULA.txt" "$INSTALLAPPDIRECTORY\App\AppInfo\EULA.txt"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\Other\Source\EULA.txt"
+			Rename "$strInstallAppDirectory\Other\Source\EULA.txt" "$strInstallAppDirectory\App\AppInfo\EULA.txt"
 			${WriteConfig} LICENSEAGREEMENT "eula.txt"
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\Other\Source\EULA.rtf"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\Other\Source\EULA.rtf"
 			${WriteErrorToLog} "EULA - Other\Source\EULA.rtf is no longer supported.  Use App\AppInfo\EULA.txt instead."
-		${ElseIf} ${FileExists} "$INSTALLAPPDIRECTORY\App\AppInfo\EULA.rtf"
+		${ElseIf} ${FileExists} "$strInstallAppDirectory\App\AppInfo\EULA.rtf"
 			${WriteErrorToLog} "EULA - App\AppInfo\EULA.rtf is not supported.  Use App\AppInfo\EULA.txt instead."
 		${EndIf}
 	${EndIf}
@@ -794,29 +924,29 @@ Section Main
 	${EndIf}
 
 	;OptionalComponents
-	${ReadINIStrWithDefault} $OPTIONALCOMPONENTS $InstallerINIFile "OptionalComponents" "OptionalComponents" "false"
+	${ReadINIStrWithDefault} $OPTIONALCOMPONENTS $strInstallerINIFile "OptionalComponents" "OptionalComponents" "false"
 	${If} $OPTIONALCOMPONENTS == "true"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "MainSectionTitle" "$PORTABLEAPPNAME (English) [Required]"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "MainSectionTitle" "$PORTABLEAPPNAME (English) [Required]"
 		${WriteConfig} MAINSECTIONTITLE "$1"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "MainSectionDescription" "Install the portable app"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "MainSectionDescription" "Install the portable app"
 		${WriteConfig} MAINSECTIONDESCRIPTION "$1"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalSectionTitle" "Additional Languages"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalSectionTitle" "Additional Languages"
 		${WriteConfig} OPTIONALSECTIONTITLE "$1"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalSectionDescription" "Add multilingual support for this app"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalSectionDescription" "Add multilingual support for this app"
 		${WriteConfig} OPTIONALSECTIONDESCRIPTION "$1"
-		${ReadINIStrWithDefault} $OptionalSectionSelectedInstallType $InstallerINIFile "OptionalComponents" "OptionalSectionSelectedInstallType" "Multilingual"
+		${ReadINIStrWithDefault} $OptionalSectionSelectedInstallType $strInstallerINIFile "OptionalComponents" "OptionalSectionSelectedInstallType" "Multilingual"
 		${WriteConfig} OPTIONALSECTIONSELECTEDINSTALLTYPE "$OptionalSectionSelectedInstallType"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalSectionNotSelectedInstallType" "English"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalSectionNotSelectedInstallType" "English"
 		${WriteConfig} OPTIONALSECTIONNOTSELECTEDINSTALLTYPE "$1"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalSectionPreSelectedIfNonEnglishInstall" "true"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalSectionPreSelectedIfNonEnglishInstall" "true"
 		${If} $1 == "true"
 			${WriteConfig} OPTIONALSECTIONPRESELECTEDIFNONENGLISHINSTALL "$1"
 		${EndIf}
 
 		${If} $OptionalSectionSelectedInstallType == "Multilingual"
-			${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalSectionInstalledWhenSilent" "false"
+			${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalSectionInstalledWhenSilent" "false"
 		${Else}
-			${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalSectionInstalledWhenSilent" "true"
+			${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalSectionInstalledWhenSilent" "true"
 		${EndIf}
 
 		${If} $1 == "true"
@@ -825,19 +955,19 @@ Section Main
 	${EndIf}
 
 	;Main directories
-	${If} $PluginInstaller == "true"
+	${If} $bolPluginInstaller == "true"
 	${AndIf} $COMMONFILESPLUGIN != "true"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "MainDirectories" "RemoveAppDirectory" "false"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "MainDirectories" "RemoveAppDirectory" "false"
 	${Else}
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "MainDirectories" "RemoveAppDirectory" "true"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "MainDirectories" "RemoveAppDirectory" "true"
 	${EndIf}
 	${If} $1 == "true"
 		${WriteConfig} REMOVEAPPDIRECTORY "true"
 	${EndIf}
-	${If} $PluginInstaller == "true"
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "MainDirectories" "RemoveOtherDirectory" "false"
+	${If} $bolPluginInstaller == "true"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "MainDirectories" "RemoveOtherDirectory" "false"
 	${Else}
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "MainDirectories" "RemoveOtherDirectory" "true"
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "MainDirectories" "RemoveOtherDirectory" "true"
 	${EndIf}
 	${If} $1 == "true"
 		${WriteConfig} REMOVEOTHERDIRECTORY "true"
@@ -846,7 +976,7 @@ Section Main
 	;Preserve directories
 	StrCpy $R1 1
 	${Do}
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "DirectoriesToPreserve" "PreserveDirectory$R1" ""
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "DirectoriesToPreserve" "PreserveDirectory$R1" ""
 		${If} $1 != ""
 			${WriteConfig} PRESERVEDIRECTORY$R1 "$1"
 		${EndIf}
@@ -856,7 +986,7 @@ Section Main
 	;Remove directories
 	StrCpy $R1 1
 	${Do}
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "DirectoriesToRemove" "RemoveDirectory$R1" ""
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "DirectoriesToRemove" "RemoveDirectory$R1" ""
 		${If} $1 != ""
 			${WriteConfig} REMOVEDIRECTORY$R1 "$1"
 		${EndIf}
@@ -866,7 +996,7 @@ Section Main
 	;Preserve files
 	StrCpy $R1 1
 	${Do}
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "FilesToPreserve" "PreserveFile$R1" ""
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "FilesToPreserve" "PreserveFile$R1" ""
 		${If} $1 != ""
 			${WriteConfig} PRESERVEFILE$R1 "$1"
 		${EndIf}
@@ -876,7 +1006,7 @@ Section Main
 	;Remove files
 	StrCpy $R1 1
 	${Do}
-		${ReadINIStrWithDefault} $1 $InstallerINIFile "FilesToRemove" "RemoveFile$R1" ""
+		${ReadINIStrWithDefault} $1 $strInstallerINIFile "FilesToRemove" "RemoveFile$R1" ""
 		${If} $1 != ""
 			${WriteConfig} REMOVEFILE$R1 "$1"
 		${EndIf}
@@ -884,61 +1014,48 @@ Section Main
 	${LoopUntil} $R1 > 10
 
 	;Custom code
-	${If} $PluginInstaller == "true"
-		StrCpy $9 "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPluginCustom.nsh"
+	${If} $bolPluginInstaller == "true"
+		StrCpy $9 "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPluginCustom.nsh"
 	${Else}
-		StrCpy $9 "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerCustom.nsh"
+		StrCpy $9 "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerCustom.nsh"
 	${EndIf}
 	${If} ${FileExists} $9
 		${WriteConfig} USESCUSTOMCODE "true"
 	${EndIf}
 
 	;Local Files
-	${ReadINIStrWithDefault} $1 $InstallerINIFile "CopyLocalFiles" "CopyLocalFiles" "false"
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "CopyLocalFiles" "CopyLocalFiles" "false"
 	${If} $1 == "true"
 		${WriteConfig} COPYLOCALFILES "true"
 
-		!insertmacro TransferInstallerINIToConfig CopyLocalFiles CopyFromRegPath -
-		!insertmacro TransferInstallerINIToConfig CopyLocalFiles CopyFromRegKey -
-		!insertmacro TransferInstallerINIToConfig CopyLocalFiles CopyFromRegRemoveDirectories -
-		!insertmacro TransferInstallerINIToConfig CopyLocalFiles CopyFromDirectory -
-		!insertmacro TransferInstallerINIToConfig CopyLocalFiles CopyToDirectory -
+		${TransferInstallerINIToConfig} CopyLocalFiles CopyFromRegPath -
+		${TransferInstallerINIToConfig} CopyLocalFiles CopyFromRegKey -
+		${TransferInstallerINIToConfig} CopyLocalFiles CopyFromRegRemoveDirectories -
+		${TransferInstallerINIToConfig} CopyLocalFiles CopyFromDirectory -
+		${TransferInstallerINIToConfig} CopyLocalFiles CopyToDirectory -
 	${EndIf}
 
 	;Download files
-	${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "DownloadURL" ""
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "DownloadURL" ""
 	${If} $1 != ""
 		StrCpy $2 $1 7
+		StrCpy $3 $1 8
 
 		${If} $2 == "http://"
+		${OrIf} $3 == "https://"
+		
 			${WriteConfig} DownloadURL "$1"
 
-			!insertmacro TransferInstallerINIToConfig DownloadFiles DownloadKnockURL      -
-			!insertmacro TransferInstallerINIToConfig DownloadFiles DownloadName          required
-			!insertmacro TransferInstallerINIToConfig DownloadFiles DownloadFilename      required
-			!insertmacro TransferInstallerINIToConfig DownloadFiles DownloadMD5           -
-			!insertmacro TransferInstallerINIToConfig DownloadFiles DownloadTo            -
-			!insertmacro TransferInstallerINIToConfig DownloadFiles AdditionalInstallSize required
+			${TransferInstallerINIToConfig} DownloadFiles DownloadKnockURL      -
+			${TransferInstallerINIToConfig} DownloadFiles DownloadName          required
+			${TransferInstallerINIToConfig} DownloadFiles DownloadFilename      required
+			${TransferInstallerINIToConfig} DownloadFiles DownloadMD5           -
+			${TransferInstallerINIToConfig} DownloadFiles DownloadTo            -
+			${TransferInstallerINIToConfig} DownloadFiles DownloadCachedByPAc   -
+			${TransferInstallerINIToConfig} DownloadFiles AdditionalInstallSize required
 
 			${For} $R1 1 10
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "Extract$R1To" ""
-				${If} $1 != ""
-					${If} $1 == "<ROOT>"
-						StrCpy $1 ""
-					${EndIf}
-					${WriteConfig} Extract$R1To "$1"
-				${EndIf}
-			${Next}
-
-			${For} $R1 1 10
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "Extract$R1File" ""
-				${If} $1 != ""
-					${WriteConfig} Extract$R1File "$1"
-				${EndIf}
-			${Next}
-
-			${For} $R1 1 10
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "AdvancedExtract$R1To" ""
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "AdvancedExtract$R1To" ""
 				${If} $1 != ""
 					${If} $1 == "<ROOT>"
 						StrCpy $1 ""
@@ -948,18 +1065,18 @@ Section Main
 			${Next}
 
 			${For} $R1 1 10
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "AdvancedExtract$R1Filter" ""
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "AdvancedExtract$R1Filter" ""
 				${If} $1 != ""
 					${WriteConfig} AdvancedExtract$R1Filter "$1"
 				${EndIf}
 			${Next}
 
-			${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "DoubleExtractFilename" ""
+			${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "DoubleExtractFilename" ""
 			${If} $1 != ""
 				${WriteConfig} DoubleExtractFilename "$1"
 
 				${For} $R1 1 10
-					${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "DoubleExtract$R1To" ""
+					${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "DoubleExtract$R1To" ""
 					${If} $1 != ""
 						${If} $1 == "<ROOT>"
 							StrCpy $1 ""
@@ -969,7 +1086,7 @@ Section Main
 				${Next}
 
 				${For} $R1 1 10
-					${ReadINIStrWithDefault} $1 $InstallerINIFile "DownloadFiles" "DoubleExtract$R1Filter" ""
+					${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "DoubleExtract$R1Filter" ""
 					${If} $1 != ""
 						${WriteConfig} DoubleExtract$R1Filter "$1"
 					${EndIf}
@@ -980,33 +1097,107 @@ Section Main
 			${WriteErrorToLog} "Installer.ini - DownloadFiles - DownloadURL must begin with http://"
 		${EndIf}
 	${EndIf}
+	
+	;Download2 files
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "Download2URL" ""
+	${If} $1 != ""
+		StrCpy $2 $1 7
+		StrCpy $3 $1 8
+
+		${If} $2 == "http://"
+		${OrIf} $3 == "https://"
+		
+			${WriteConfig} Download2URL "$1"
+
+			${TransferInstallerINIToConfig} DownloadFiles Download2KnockURL      -
+			${TransferInstallerINIToConfig} DownloadFiles Download2Name          required
+			${TransferInstallerINIToConfig} DownloadFiles Download2Filename      required
+			${TransferInstallerINIToConfig} DownloadFiles Download2MD5           -
+			${TransferInstallerINIToConfig} DownloadFiles Download2To            -
+			${TransferInstallerINIToConfig} DownloadFiles Download2CachedByPAc   -
+
+			${For} $R1 1 10
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "Download2AdvancedExtract$R1To" ""
+				${If} $1 != ""
+					${If} $1 == "<ROOT>"
+						StrCpy $1 ""
+					${EndIf}
+					${WriteConfig} Download2AdvancedExtract$R1To "$1"
+				${EndIf}
+			${Next}
+
+			${For} $R1 1 10
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "Download2AdvancedExtract$R1Filter" ""
+				${If} $1 != ""
+					${WriteConfig} Download2AdvancedExtract$R1Filter "$1"
+				${EndIf}
+			${Next}
+
+			${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "Download2DoubleExtractFilename" ""
+			${If} $1 != ""
+				${WriteConfig} Download2DoubleExtractFilename "$1"
+
+				${For} $R1 1 10
+					${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "Download2DoubleExtract$R1To" ""
+					${If} $1 != ""
+						${If} $1 == "<ROOT>"
+							StrCpy $1 ""
+						${EndIf}
+						${WriteConfig} Download2DoubleExtract$R1To "$1"
+					${EndIf}
+				${Next}
+
+				${For} $R1 1 10
+					${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "Download2DoubleExtract$R1Filter" ""
+					${If} $1 != ""
+						${WriteConfig} Download2DoubleExtract$R1Filter "$1"
+					${EndIf}
+				${Next}
+
+			${EndIf}
+		${Else}
+			${WriteErrorToLog} "Installer.ini - DownloadFiles - Download2URL must begin with http://"
+		${EndIf}
+	${EndIf}
+	
+	${ReadINIStrWithDefault} $1 $strInstallerINIFile "DownloadFiles" "CustomCodeUses7zip" "false"
+	${If} $1 == "true"
+		${WriteConfig} CustomCodeUses7zip "true"
+	${EndIf}
 
 	FileClose $0
 
 	; If errors have occurred, there's no point in going on to the actual generation of it.
-	${If} $ERROROCCURED != "true"
+	${If} $bolErrorOccurred != "true"
 		;Make the installer header
-		${If} $USEEXTRACTEDICON == "true"
-		${OrIf} $PluginInstaller == "true"
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\PortableApps.comInstallerHeader.bmp" "$INSTALLAPPDIRECTORY\Other\Source"
-			CopyFiles /SILENT "$EXEDIR\App\default_bits\PortableApps.comInstallerHeaderRTL.bmp" "$INSTALLAPPDIRECTORY\Other\Source"
+		${If} $bolPluginInstaller == "true"
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\PortableApps.comInstallerHeaderPlugin.bmp" "$strInstallAppDirectory\Other\Source"
+			Rename "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeaderPlugin.bmp" "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeader.bmp" 
+			CopyFiles /SILENT "$EXEDIR\App\default_bits\PortableApps.comInstallerHeaderPluginRTL.bmp" "$strInstallAppDirectory\Other\Source"
+			Rename "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeaderPluginRTL.bmp" "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeaderRTL.bmp" 
 		${Else}
-			ExecWait `"$EXEDIR\App\bin\MakeHeader.exe" "$INSTALLAPPDIRECTORY"`
+			${If} $bolUseExtractedIcon == "true"
+			${AndIfNot} ${FileExists} "$strInstallAppDirectory\App\AppInfo\appicon_32.png"
+				CopyFiles /SILENT "$EXEDIR\App\default_bits\PortableApps.comInstallerHeader.bmp" "$strInstallAppDirectory\Other\Source"
+				CopyFiles /SILENT "$EXEDIR\App\default_bits\PortableApps.comInstallerHeaderRTL.bmp" "$strInstallAppDirectory\Other\Source"
+			${Else}
+				ExecWait `"$EXEDIR\App\bin\MakeHeader.exe" "$strInstallAppDirectory"`
+			${EndIf}
 		${EndIf}
 
 		;Move optional component files
 		${If} $OPTIONALCOMPONENTS == "true"
-			CreateDirectory "$INSTALLAPPDIRECTORY\Optional1"
+			CreateDirectory "$strInstallAppDirectory\Optional1"
 
 			;Move directories
 			StrCpy $R1 1
 			${Do}
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalDirectory$R1" "\COMPLETED\"
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalDirectory$R1" "\COMPLETED\"
 				${If} $1 != ""
 				${AndIf} $1 != "\COMPLETED\"
-					${GetParent} "$INSTALLAPPDIRECTORY\Optional1\$1" $2
+					${GetParent} "$strInstallAppDirectory\Optional1\$1" $2
 					CreateDirectory $2
-					Rename "$INSTALLAPPDIRECTORY\$1" "$INSTALLAPPDIRECTORY\Optional1\$1"
+					Rename "$strInstallAppDirectory\$1" "$strInstallAppDirectory\Optional1\$1"
 				${EndIf}
 				IntOp $R1 $R1 + 1
 			${LoopUntil} $1 == "\COMPLETED\"
@@ -1014,13 +1205,13 @@ Section Main
 			;Move files
 			StrCpy $R1 1
 			${Do}
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalFile$R1" "\COMPLETED\"
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalFile$R1" "\COMPLETED\"
 				${If} $1 != ""
 				${AndIf} $1 != "\COMPLETED\"
-					${GetParent} "$INSTALLAPPDIRECTORY\Optional1\$1" $2
+					${GetParent} "$strInstallAppDirectory\Optional1\$1" $2
 					CreateDirectory $2
-					${GetParent} "$INSTALLAPPDIRECTORY\$1" $3
-					${GetFileName} "$INSTALLAPPDIRECTORY\Optional1\$1" $4
+					${GetParent} "$strInstallAppDirectory\$1" $3
+					${GetFileName} "$strInstallAppDirectory\Optional1\$1" $4
 					${MoveFiles} DOS "$4" "$3" "$2"
 				${EndIf}
 				IntOp $R1 $R1 + 1
@@ -1030,7 +1221,7 @@ Section Main
 
 		;Compile the installer
 		SetDetailsPrint ListOnly
-		${If} $PluginInstaller == "true"
+		${If} $bolPluginInstaller == "true"
 			DetailPrint "Creating $PLUGINNAME installer..."
 		${Else}
 			DetailPrint "Creating $PORTABLEAPPNAME installer..."
@@ -1039,19 +1230,30 @@ Section Main
 		${TBProgress} 66
 
 		;Delete existing installer if there is one
-		${GetParent} $INSTALLAPPDIRECTORY $0
-		Delete "$0\$INSTALLERFILENAME.paf.exe"
-		${If} ${FileExists} "$0\$INSTALLERFILENAME.paf.exe"
-			MessageBox MB_OK|MB_ICONEXCLAMATION "Unable to delete file: $0\$INSTALLERFILENAME.paf.exe.  Please be sure the file is not in use"
-			${WriteErrorToLog} "Unable to delete file: $0\$INSTALLERFILENAME.paf.exe.  Please be sure the file is not in use."
+		${GetParent} $strInstallAppDirectory $0
+		Delete "$0\$strInstallerFilename.paf.exe"
+		${If} ${FileExists} "$0\$strInstallerFilename.paf.exe"
+			MessageBox MB_OK|MB_ICONEXCLAMATION "Unable to delete file: $0\$strInstallerFilename.paf.exe.  Please be sure the file is not in use"
+			${WriteErrorToLog} "Unable to delete file: $0\$strInstallerFilename.paf.exe.  Please be sure the file is not in use."
 		${Else}
+			${If} ${FileExists} "$strInstallAppDirectory\App\AppInfo\appinfo.ini"
+				DeleteINISec "$strInstallAppDirectory\App\AppInfo\appinfo.ini" "PortableApps.comInstaller"
+			${EndIf}
+			Delete "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini"
 			SetOutPath "$EXEDIR\App\nsis"
-			${If} $PluginInstaller == "true"
-				ExecDos::exec `"$EXEDIR\App\nsis\makensis.exe" /O"$EXEDIR\Data\PortableApps.comInstallerLog.txt" "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPlugin.nsi"` "" ""
+			${If} $bolPluginInstaller == "true"
+				ExecDos::exec `"$EXEDIR\App\nsis\makensis.exe" /O"$EXEDIR\Data\PortableApps.comInstallerLog.txt" "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPlugin.nsi"` "" ""
 			${Else}
-				WriteINIStr "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini" "Installer" "Run" "false"
-				ExecDos::exec `"$EXEDIR\App\nsis\makensis.exe" /O"$EXEDIR\Data\PortableApps.comInstallerLog.txt" "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.nsi"` "" ""
-				DeleteINISec "$INSTALLAPPDIRECTORY\App\AppInfo\appinfo.ini" "Installer"
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "Info1" "Do not delete or modify this file. It may be necessary for this app to function correctly."
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "Info2" "This file was generated by the PortableApps.com Installer wizard."
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "Info3" "This file should be excluded from git repositories by using the appropriate gitignore."
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "Run" "false"
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "WizardVersion" "${VER}"
+				${GetTime} "" "L" $R0 $R1 $R2 $R3 $R4 $R5 $R6
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "PackagingDate" "$R2-$R1-$R0"
+				WriteINIStr "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "PackagingTime" "$R4:$R5:$R6"
+				ExecDos::exec `"$EXEDIR\App\nsis\makensis.exe" /O"$EXEDIR\Data\PortableApps.comInstallerLog.txt" "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.nsi"` "" ""
+				Delete "$strInstallAppDirectory\App\AppInfo\pac_installer_log.ini"
 			${EndIf}
 		${EndIf}
 
@@ -1060,10 +1262,10 @@ Section Main
 			;Move directories
 			StrCpy $R1 1
 			${Do}
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalDirectory$R1" "\COMPLETED\"
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalDirectory$R1" "\COMPLETED\"
 				${If} $1 != ""
 				${AndIf} $1 != "\COMPLETED\"
-					Rename "$INSTALLAPPDIRECTORY\Optional1\$1" "$INSTALLAPPDIRECTORY\$1"
+					Rename "$strInstallAppDirectory\Optional1\$1" "$strInstallAppDirectory\$1"
 				${EndIf}
 				IntOp $R1 $R1 + 1
 			${LoopUntil} $1 == "\COMPLETED\"
@@ -1071,18 +1273,18 @@ Section Main
 			;Move files
 			StrCpy $R1 1
 			${Do}
-				${ReadINIStrWithDefault} $1 $InstallerINIFile "OptionalComponents" "OptionalFile$R1" "\COMPLETED\"
+				${ReadINIStrWithDefault} $1 $strInstallerINIFile "OptionalComponents" "OptionalFile$R1" "\COMPLETED\"
 				${If} $1 != ""
 				${AndIf} $1 != "\COMPLETED\"
-					${GetParent} "$INSTALLAPPDIRECTORY\Optional1\$1" $2
-					${GetParent} "$INSTALLAPPDIRECTORY\$1" $3
-					${GetFileName} "$INSTALLAPPDIRECTORY\Optional1\$1" $4
+					${GetParent} "$strInstallAppDirectory\Optional1\$1" $2
+					${GetParent} "$strInstallAppDirectory\$1" $3
+					${GetFileName} "$strInstallAppDirectory\Optional1\$1" $4
 					${MoveFiles} DOS "$4" "$2" "$3"
 				${EndIf}
 				IntOp $R1 $R1 + 1
 			${LoopUntil} $1 == "\COMPLETED\"
 
-			RMDir /r "$INSTALLAPPDIRECTORY\Optional1"
+			RMDir /r "$strInstallAppDirectory\Optional1"
 		${EndIf}
 	${EndIf}
 
@@ -1091,55 +1293,84 @@ Section Main
 	DetailPrint " "
 	DetailPrint "Processing complete."
 
-	${If} ${FileExists} "$0\$INSTALLERFILENAME.paf.exe"
-	${AndIf} $ERROROCCURED != "true"
-		StrCpy $FINISHTITLE "Installer Created"
-		StrCpy $FINISHTEXT "The installer has been created. Installer location:\r\n$0\r\n\r\nInstaller name:\r\n$INSTALLERFILENAME.paf.exe"
+	${If} ${FileExists} "$0\$strInstallerFilename.paf.exe"
+	${AndIf} $bolErrorOccurred != "true"
+		StrCpy $strFinishPageTitle "Installer Created"
+		StrCpy $strFinishPageText "The installer has been created. Installer location:$\r$\n$0$\r$\n$\r$\nInstaller name:$\r$\n$strInstallerFilename.paf.exe"
 	${Else}
-		StrCpy $FINISHTITLE "An Error Occured"
-		StrCpy $FINISHTEXT "The installer was not created.  You can view the log file for more information."
-		StrCpy $ERROROCCURED "true"
+		StrCpy $strFinishPageTitle "An Error Occured"
+		StrCpy $strFinishPageText "The installer was not created.  You can view the log file for more information."
+		StrCpy $bolErrorOccurred "true"
 	${EndIf}
 
 	SetDetailsPrint none
 	;Remove the installer files if not included
-	${If} $INCLUDESOURCE != "true"
-	${AndIf} $ERROROCCURED != "true"
-		RMDir /r "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerLanguages\"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.bmp"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.ico"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstaller.nsi"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerConfig.nsh"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerDriveFreeSpaceCustom.nsh"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerDumpLogToFile.nsh"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerHeader.bmp"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerHeaderRTL.bmp"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerMoveFiles.nsh"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPlugin.nsi"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerPluginConfig.nsh"
-		Delete "$INSTALLAPPDIRECTORY\Other\Source\PortableApps.comInstallerTBProgress.nsh"
+	${If} $INCLUDEINSTALLERSOURCE != "true"
+	${AndIf} $bolErrorOccurred != "true"
+		RMDir /r "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerLanguages\"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.bmp"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.ico"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstaller.nsi"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerConfig.nsh"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerDriveFreeSpaceCustom.nsh"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerDumpLogToFile.nsh"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeader.bmp"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerHeaderRTL.bmp"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerMoveFiles.nsh"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPlugin.nsi"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerPluginConfig.nsh"
+		Delete "$strInstallAppDirectory\Other\Source\PortableApps.comInstallerTBProgress.nsh"
 	${EndIf}
 
 	;Remove the Source and Other directories if empty
-	RMDir "$INSTALLAPPDIRECTORY\Other\Source"
-	RMDir "$INSTALLAPPDIRECTORY\Other"
+	RMDir "$strInstallAppDirectory\Other\Source"
+	RMDir "$strInstallAppDirectory\Other"
 	${TBProgress_State} NoProgress 
 SectionEnd
 
-Function ShowFinishPage
-	${If} $AUTOMATICCOMPILE == "true"
-	${AndIf} $ERROROCCURED != "true"
+Function FinishPagePre
+	${If} $bolAutomaticCompile == "true"
+	${AndIf} $bolErrorOccurred != "true"
+		;If running in automated mode and no errors, just exit
 		Abort
-	${ElseIf} $ERROROCCURED == "true"
-		!insertmacro MUI_INSTALLOPTIONS_WRITE "ioSpecial.ini" "Field 4" "Flags" "DISABLED"
-		!insertmacro MUI_INSTALLOPTIONS_WRITE "ioSpecial.ini" "Field 5" "State" "1"
 	${EndIf}
 FunctionEnd
 
-Function RunOnFinish
-	Exec `"$0\$INSTALLERFILENAME.paf.exe"`
+;Annoying hack to fix MUI2's broken cancel button
+!ifndef SC_CLOSE
+!define SC_CLOSE 0xF060
+!endif
+
+Function FinishPageShow
+	;Annoying hack to fix MUI2's broken cancel button Pt2
+	EnableWindow $mui.Button.Cancel 1
+	System::Call 'USER32::GetSystemMenu(i $hwndparent,i0)i.s'
+	System::Call 'USER32::EnableMenuItem(is,i${SC_CLOSE},i0)'
+
+	${If} $bolErrorOccurred == "true"
+		;Disallow running the app since it wasn't created
+		EnableWindow $mui.Finishpage.Run 0
+		;Check the box to show the log file by default
+		${NSD_Check} $mui.FinishPage.ShowReadme
+	${EndIf}
+	SetCtlColors $mui.FinishPage.Title 0x000000 0xFFFFFF
+	SetCtlColors $mui.FinishPage.Text 0x000000 0xFFFFFF
+	;These should work but do not
+	SetCtlColors $mui.Finishpage.Run 0x000000 0xFFFFFF
+	SetCtlColors $mui.FinishPage.ShowReadme 0x000000 0xFFFFFF
+	${If} $bolHighContrast == "true"
+		;Annoying hack to ensure checkboxes are visible when high contrast is on
+		SetCtlColors $mui.Finishpage.Run 0x000000 0x888888
+		SetCtlColors $mui.FinishPage.ShowReadme 0x000000 0x888888
+	${EndIf}
+FunctionEnd
+
+Function FinishPageRun
+	Exec `"$0\$strInstallerFilename.paf.exe"`
 FunctionEnd
 
 Function .onGUIEnd
-	RealProgress::Unload
+	${If} $bolAutomaticCompile != "true"
+		RealProgress::Unload
+	${EndIf}
 FunctionEnd

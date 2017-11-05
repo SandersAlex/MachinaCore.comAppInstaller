@@ -1,8 +1,6 @@
 ﻿;http://nsis.sourceforge.net/Docs/AppendixD.html#D.4
 ;Define added by John T. Haller of PortableApps.com
 
-;NOTE - Not yet used.  Added for future reference.
-
 !ifndef DumpLogToFile
 
 !define DumpLogToFile "!insertmacro DumpLogToFile"
