@@ -1,4 +1,4 @@
-﻿;Copyright 2007-2015 John T. Haller of PortableApps.com
+﻿;Copyright 2007-2017  John T. Haller of PortableApps.com
 ;Website: http://PortableApps.com/
 
 ;This software is OSI Certified Open Source Software.
@@ -24,12 +24,12 @@
 ;as published at PortableApps.com/development. It may also be used with commercial
 ;software by contacting PortableApps.com.
 
-;=== For NSIS3
+;NSIS3
 Unicode true 
 ManifestDPIAware true
 
-!define PORTABLEAPPSINSTALLERVERSION "3.1.0.0"
-!define PORTABLEAPPS.COMFORMATVERSION "3.0"
+!define PORTABLEAPPSINSTALLERVERSION "3.5.5.0"
+!define PORTABLEAPPS.COMFORMATVERSION "3.5.5"
 
 !if ${__FILE__} == "PortableApps.comInstallerPlugin.nsi"
 	!include PortableApps.comInstallerPluginConfig.nsh
@@ -41,6 +41,29 @@ ManifestDPIAware true
 !define MAINSECTIONIDX 0
 !ifdef MAINSECTIONTITLE
 	!define OPTIONALSECTIONIDX 1
+!endif
+
+;7z Usage
+!ifdef AdvancedExtract1To
+	!define bolUses7Zip true
+!else
+	!ifdef DoubleExtract1To
+		!define bolUses7Zip true
+	!else
+		!ifdef Download2AdvancedExtract1To
+			!define bolUses7Zip true
+		!else
+			!ifdef Download2DoubleExtract1To
+				!define bolUses7Zip true
+			!else
+				!ifdef CustomCodeUses7zip
+					!if CustomCodeUses7zip = true
+						!define bolUses7Zip true
+					!endif
+				!endif
+			!endif
+		!endif
+	!endif
 !endif
 
 ;=== Program Details
@@ -56,7 +79,7 @@ VIProductVersion "${VERSION}"
 VIAddVersionKey ProductName "${PORTABLEAPPNAME}"
 VIAddVersionKey Comments "${INSTALLERCOMMENTS}"
 VIAddVersionKey CompanyName "GathSystems.com"
-VIAddVersionKey LegalCopyright "2007-2015 GathSystems.com, GathSystems.com Installer ${PORTABLEAPPSINSTALLERVERSION}"
+VIAddVersionKey LegalCopyright "2007-2017 GathSystems.com, GathSystems.com Installer ${PORTABLEAPPSINSTALLERVERSION}"
 VIAddVersionKey FileDescription "${PORTABLEAPPNAME}"
 VIAddVersionKey FileVersion "${VERSION}"
 VIAddVersionKey ProductVersion "${VERSION}"
@@ -71,10 +94,25 @@ VIAddVersionKey PortableApps.comAppID "${APPID}"
 	VIAddVersionKey PortableApps.comDownloadKnockURL "${DownloadKnockURL}"
 	VIAddVersionKey PortableApps.comDownloadName "${DownloadName}"
 	VIAddVersionKey PortableApps.comDownloadFileName "${DownloadFileName}"
-	VIAddVersionKey PortableApps.comDownloadMD5 "${DownloadMD5}"
+	!ifdef DownloadMD5
+		VIAddVersionKey PortableApps.comDownloadMD5 "${DownloadMD5}"
+	!endif
+	!ifdef DownloadCachedByPAc
+		VIAddVersionKey DownloadCachedByPAc "true"
+	!endif
 !endif
-
-
+!ifdef Download2URL ;advertise the needed bits to the PA.c Updater
+	VIAddVersionKey PortableApps.comDownload2URL "${Download2URL}"
+	VIAddVersionKey PortableApps.comDownload2KnockURL "${Download2KnockURL}"
+	VIAddVersionKey PortableApps.comDownload2Name "${Download2Name}"
+	VIAddVersionKey PortableApps.comDownload2FileName "${Download2FileName}"
+	!ifdef Download2MD5
+		VIAddVersionKey PortableApps.comDownload2MD5 "${Download2MD5}"
+	!endif
+	!ifdef Download2CachedByPAc
+		VIAddVersionKey Download2CachedByPAc "true"
+	!endif
+!endif
 
 ;=== Runtime Switches
 SetCompress Auto
@@ -85,8 +123,6 @@ CRCCheck on
 AutoCloseWindow True
 RequestExecutionLevel user
 AllowRootDirInstall true
-
-
 
 ;=== Include
 !include MUI2.nsh
@@ -130,6 +166,7 @@ BrandingText "GathSystems.com®"
 !endif
 !define MUI_WELCOMEPAGE_TEXT "$(welcome)"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE PreWelcome
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ShowWelcome
 !define MUI_COMPONENTSPAGE_SMALLDESC
 !insertmacro MUI_PAGE_WELCOME
 !ifdef LICENSEAGREEMENT
@@ -141,16 +178,19 @@ BrandingText "GathSystems.com®"
 !endif
 !ifdef MAINSECTIONTITLE
 	!define MUI_PAGE_CUSTOMFUNCTION_PRE PreComponents
+	!define MUI_PAGE_CUSTOMFUNCTION_SHOW ShowComponents
 	!insertmacro MUI_PAGE_COMPONENTS
 !endif
 !define MUI_DIRECTORYPAGE_VERIFYONLEAVE
 !define MUI_PAGE_CUSTOMFUNCTION_PRE PreDirectory
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ShowDirectory
 !define MUI_PAGE_CUSTOMFUNCTION_LEAVE LeaveDirectory
 !insertmacro MUI_PAGE_DIRECTORY
 !define MUI_PAGE_CUSTOMFUNCTION_SHOW ShowInstFiles
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TEXT "$(finish)"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE PreFinish
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW ShowFinish
 !define MUI_FINISHPAGE_TITLE_3LINES
 ;!define MUI_FINISHPAGE_CANCEL_ENABLED ;Disabled due to bug in MUI2
 !ifndef PLUGINNAME
@@ -251,6 +291,7 @@ BrandingText "GathSystems.com®"
 !endif
 
 ;=== Macros
+;Generic macro for use by defined file/directory handling
 !macro !insertmacro1-10 _m
 !insertmacro ${_m} 1
 !insertmacro ${_m} 2
@@ -264,6 +305,22 @@ BrandingText "GathSystems.com®"
 !insertmacro ${_m} 10
 !macroend
 !define !insertmacro1-10 "!insertmacro !insertmacro1-10"
+
+!define PageHeaderHackForHighContrast "!insertmacro PageHeaderHackForHighContrast"
+!macro PageHeaderHackForHighContrast
+	!if ${MUI_SYSVERSION} >= 2
+		SetCtlColors $mui.Header.Text 0x000000 0xFFFFFF
+		SetCtlColors $mui.Header.SubText 0x000000 0xFFFFFF
+	!else
+		Push $0
+		FindWindow $0 "#32770" "" $HWNDPARENT
+		GetDlgItem $0 $HWNDPARENT 1037
+		SetCtlColors $0 0x000000 0xFFFFFF
+		GetDlgItem $0 $HWNDPARENT 1038
+		SetCtlColors $0 0x000000 0xFFFFFF
+		Pop $0
+	!endif
+!macroend
 
 ;=== Variables
 Var FOUNDPORTABLEAPPSPATH
@@ -291,13 +348,26 @@ Var MINIMIZEINSTALLER
 	Var SECONDDOWNLOADATTEMPT
 	Var DownloadURLActual
 !endif
-Var INTERNALEULAVERSION
+!ifdef DOWNLOAD2URL
+	Var DOWNLOAD2RESULT
+	Var DOWNLOADED2FILE
+	Var DOWNLOAD2ALREADYEXISTED
+	Var SECONDDOWNLOAD2ATTEMPT
+	Var Download2URLActual
+!endif
+!ifdef LICENSEAGREEMENT
+	Var INTERNALEULAVERSION
+!endif
 Var InstallingStatusString
 Var bolAppUpgrade
 Var bolLogFile
 Var PAcLocaleID
 Var strLastDirectory
 Var strTimeStore
+!ifdef DownloadURL
+	Var intWarnOnZoneCrossing
+!endif
+Var bolHighContrast
 
 ;=== Custom Code
 !ifdef USESCUSTOMCODE
@@ -318,6 +388,10 @@ Var strTimeStore
 !endif
 
 Function .onInit
+	;=== Check for high contrast mode from platform
+	ReadEnvStr $bolHighContrast "PortableApps.comHighContrast"
+
+	StrCpy $ITaskbarList3 0 ;Small hack to avoid warning when installers have no EULA and can't trigger error state
 	SetSilent normal
 
 	!ifdef DownloadURL
@@ -680,6 +754,11 @@ Function PreWelcome
 	${IfThen} $AUTOMATEDINSTALL == "true" ${|} Abort ${|}
 FunctionEnd
 
+Function ShowWelcome
+	SetCtlColors $mui.WelcomePage.Title 0x000000 0xFFFFFF
+	SetCtlColors $mui.WelcomePage.Text 0x000000 0xFFFFFF
+FunctionEnd
+
 !ifdef LICENSEAGREEMENT
 Function PreLicense
 	${If} $AUTOMATEDINSTALL == "true"
@@ -702,8 +781,9 @@ Function PreLicense
 	${EndIf}
 FunctionEnd
 Function ShowLicense
+	${PageHeaderHackForHighContrast}
 	${If} $AUTOMATEDINSTALL == "true"
-		${TBProgress} 20
+		${TBProgress} 10
 		${TBProgress_State} Paused
 	${EndIf}
 FunctionEnd
@@ -716,6 +796,7 @@ FunctionEnd
 
 Function ShowInstFiles
 	w7tbp::Start
+	${PageHeaderHackForHighContrast}
 FunctionEnd
 
 !ifdef MAINSECTIONTITLE
@@ -737,6 +818,10 @@ FunctionEnd
 			SectionSetFlags 0 ${OPTIONALSECTIONIDX}
 			Abort
 		${EndIf}
+	FunctionEnd
+	
+	Function ShowComponents
+		${PageHeaderHackForHighContrast}
 	FunctionEnd
 !endif
 
@@ -800,6 +885,10 @@ Function PreDirectory
 	MessageBox MB_OK|MB_ICONINFORMATION $(runwarning)
 FunctionEnd
 
+Function ShowDirectory
+	${PageHeaderHackForHighContrast}
+FunctionEnd
+
 Function LeaveDirectory
 	;=== Prevent destination string changes without user verification
 	${GetTime} "" "LS" $0 $1 $2 $3 $4 $5 $6
@@ -821,11 +910,26 @@ Function LeaveDirectory
 	${AndIf} "${CHECKRUNNING}" != "NONE"
 		;=== Check if app is running?
 		FindProcDLL::FindProc "${CHECKRUNNING}"
-		${If} $R0 = 1
+		${If} $R0 == 1
 			MessageBox MB_OK|MB_ICONINFORMATION $(runwarning)
 			Abort
 		${EndIf}
 	${EndIf}
+	
+	;=== Check if common files to existing directory with contents
+	!ifdef COMMONFILESPLUGIN
+		${If} ${FileExists} "$INSTDIR\*.*"
+			${GetFileName} "$INSTDIR" $0
+			${If} $0 != ${APPID}
+			${AndIfNot} ${FileExists} "$INSTDIR\App\AppInfo\plugininstaller.ini"
+				;=== Installing to an existing directory with contents that doesn't match the AppID
+				MessageBox MB_YESNO|MB_ICONQUESTION $(existingfileswarning) /SD IDYES IDYES InstallToPathWithExistingFiles
+					Abort
+				InstallToPathWithExistingFiles:
+			${EndIf}
+		${EndIf}
+	!endif
+
 
 	; 0 is valid, enough space, all fine
 	${Select} $0
@@ -911,16 +1015,32 @@ Function .onVerifyInstDir
 	StrCpy $strLastDirectory $INSTDIR
 FunctionEnd
 
+Function PreFinish
+	${IfThen} $AUTOCLOSE == "true" ${|} Abort ${|}
+FunctionEnd
+
+;Annoying hack to fix MUI2's broken cancel button
 !ifndef SC_CLOSE
 !define SC_CLOSE 0xF060
 !endif
 
-Function PreFinish
-	${IfThen} $AUTOCLOSE == "true" ${|} Abort ${|}
-	;Fix for bug in MUI2 with  MUI_FINISHPAGE_CANCEL_ENABLED
+Function ShowFinish
+	;Annoying hack to fix MUI2's broken cancel button Pt2
 	EnableWindow $mui.Button.Cancel 1
 	System::Call 'USER32::GetSystemMenu(i $hwndparent,i0)i.s'
 	System::Call 'USER32::EnableMenuItem(is,i${SC_CLOSE},i0)'
+
+	SetCtlColors $mui.FinishPage.Title 0x000000 0xFFFFFF
+	SetCtlColors $mui.FinishPage.Text 0x000000 0xFFFFFF
+	
+	!ifndef PLUGINNAME
+		;These should work but do not
+		SetCtlColors $mui.Finishpage.Run 0x000000 0xFFFFFF
+		${If} $bolHighContrast == "true"
+			;Annoying hack to ensure checkboxes are visible when high contrast is on
+			SetCtlColors $mui.Finishpage.Run 0x000000 0x888888
+		${EndIf}
+	!endif
 FunctionEnd
 
 Function GetDrivesCallBack
@@ -932,7 +1052,7 @@ Function GetDrivesCallBack
 			Return
 		${EndIf}
 	${EndIf}
-	
+
 	${If} ${FileExists} $9PortableApps
 		StrCpy $FOUNDPORTABLEAPPSPATH $9PortableApps	
 	${OrIf} ${FileExists} $9GathSystems.com\PortableApps
@@ -1010,6 +1130,12 @@ FunctionEnd
 
 		
 		!ifdef DownloadKnockURL
+			ReadRegDWORD $intWarnOnZoneCrossing HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing"
+	
+			${If} $intWarnOnZoneCrossing != 0
+				WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" 0x00000000
+			${EndIf}
+		
 			SetDetailsPrint none
 			Delete "$PLUGINSDIR\Downloaded\KnockURL.html"
 			${If} $(downloading) != ""
@@ -1019,16 +1145,32 @@ FunctionEnd
 			${EndIf}
 			SetDetailsPrint ListOnly
 			Pop $0
+			
+			${If} $intWarnOnZoneCrossing != 0
+				WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" $intWarnOnZoneCrossing
+			${EndIf}
 		!endif
 		
 		SetDetailsPrint none
 		Delete "$PLUGINSDIR\Downloaded\${DownloadName}"
 		Delete "$PLUGINSDIR\Downloaded\${DownloadFilename}"	
+		
+		ReadRegDWORD $intWarnOnZoneCrossing HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing"
+	
+		${If} $intWarnOnZoneCrossing != 0
+			WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" 0x00000000
+		${EndIf}
+		
 		${If} $(downloading) != ""
 			inetc::get /CONNECTTIMEOUT 30 /NOCOOKIES /TRANSLATE $(downloading) $(downloadconnecting) $(downloadsecond) $(downloadminute) $(downloadhour) $(downloadplural) "%dkB (%d%%) $(downloadof) %dkB @ %d.%01dkB/s" " (%d %s%s $(downloadremaining))" "$DownloadURLActual" "$PLUGINSDIR\Downloaded\${DownloadName}" /END
 		${Else}
 			inetc::get /CONNECTTIMEOUT 30 /NOCOOKIES /TRANSLATE "Downloading %s..." "Connecting..." second minute hour s "%dkB (%d%%) $(downloadof) %dkB @ %d.%01dkB/s" " (%d %s%s remaining)" "$DownloadURLActual" "$PLUGINSDIR\Downloaded\${DownloadName}" /END
 		${EndIf}
+		
+		${If} $intWarnOnZoneCrossing != 0
+			WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" $intWarnOnZoneCrossing
+		${EndIf}
+		
 		SetDetailsPrint both
 		DetailPrint $InstallingStatusString
 		SetDetailsPrint ListOnly
@@ -1090,6 +1232,151 @@ FunctionEnd
 			${Else}
 				MessageBox MB_OK|MB_ICONEXCLAMATION `The installer was unable to download ${DownloadName}.  The installation of the portable app will be incomplete without it. Please try installing again. (ERROR: $DOWNLOADRESULT)`
 				DetailPrint `The installer was unable to download ${DownloadName}.  The installation of the portable app will be incomplete without it. Please try installing again. (ERROR: $DOWNLOADRESULT)`
+			${EndIf}
+			${TBProgress_State} NoProgress
+			Abort
+		${EndIf}
+	${EndIf}
+!endif
+
+!ifdef Download2URL
+	${If} ${FileExists} `$EXEDIR\${Download2FileName}`
+		!ifdef Download2MD5
+			md5dll::GetMD5File "$EXEDIR\${Download2FileName}"
+			Pop $R0
+			${If} $R0 == ${Download2MD5}
+				StrCpy $DOWNLOAD2ALREADYEXISTED "true"
+				StrCpy $DOWNLOAD2RESULT "OK"
+			${EndIf}
+		!else
+			StrCpy $DOWNLOAD2ALREADYEXISTED "true"
+			StrCpy $DOWNLOAD2RESULT "OK"
+		!endif
+	${EndIf}
+	
+	${If} $DOWNLOAD2ALREADYEXISTED == "true"
+		StrCpy $DOWNLOADED2FILE "$EXEDIR\${Download2FileName}"
+	${Else}
+		StrCpy $Download2URLActual ${Download2URL}
+		Download2TheFile:
+		CreateDirectory `$PLUGINSDIR\Downloaded-2`
+		SetDetailsPrint both
+		${If} $(downloading) != ""
+			${WordReplace} `$(downloading)` `${DownloadName}` `${Download2Name}` "+" $0
+			DetailPrint $0
+		${Else}
+			DetailPrint "Downloading ${Download2Name}..."
+		${EndIf}
+
+		
+		!ifdef Download2KnockURL
+			ReadRegDWORD $intWarnOnZoneCrossing HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing"
+	
+			${If} $intWarnOnZoneCrossing != 0
+				WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" 0x00000000
+			${EndIf}
+		
+			SetDetailsPrint none
+			Delete "$PLUGINSDIR\Downloaded-2\KnockURL.html"
+			${If} $(downloading) != ""
+				${WordReplace} `$(downloading)` `${DownloadName}` `${Download2Name}` "+" $0
+				inetc::get /CONNECTTIMEOUT 30 /NOCOOKIES /TRANSLATE $0 $(downloadconnecting) $(downloadsecond) $(downloadminute) $(downloadhour) $(downloadplural) "%dkB (%d%%) $(downloadof) %dkB @ %d.%01dkB/s" " (%d %s%s $(downloadremaining))" "${Download2KnockURL}" "$PLUGINSDIR\Downloaded-2\KnockURL.html" /END
+			${Else}
+				inetc::get /CONNECTTIMEOUT 30 /NOCOOKIES /TRANSLATE "Downloading %s..." "Connecting..." second minute hour s "%dkB (%d%%) $(downloadof) %dkB @ %d.%01dkB/s" " (%d %s%s remaining)" "${Download2KnockURL}" "$PLUGINSDIR\Downloaded-2\KnockURL.html" /END
+			${EndIf}
+			SetDetailsPrint ListOnly
+			Pop $0
+			
+			${If} $intWarnOnZoneCrossing != 0
+				WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" $intWarnOnZoneCrossing
+			${EndIf}
+		!endif
+		
+		SetDetailsPrint none
+		Delete "$PLUGINSDIR\Downloaded-2\${Download2Name}"
+		Delete "$PLUGINSDIR\Downloaded-2\${Download2Filename}"	
+		
+		ReadRegDWORD $intWarnOnZoneCrossing HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing"
+	
+		${If} $intWarnOnZoneCrossing != 0
+			WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" 0x00000000
+		${EndIf}
+		
+		${If} $(downloading) != ""
+			${WordReplace} `$(downloading)` `${DownloadName}` `${Download2Name}` "+" $0
+			inetc::get /CONNECTTIMEOUT 30 /NOCOOKIES /TRANSLATE $0 $(downloadconnecting) $(downloadsecond) $(downloadminute) $(downloadhour) $(downloadplural) "%dkB (%d%%) $(downloadof) %dkB @ %d.%01dkB/s" " (%d %s%s $(downloadremaining))" "$Download2URLActual" "$PLUGINSDIR\Downloaded-2\${Download2Name}" /END
+		${Else}
+			inetc::get /CONNECTTIMEOUT 30 /NOCOOKIES /TRANSLATE "Downloading %s..." "Connecting..." second minute hour s "%dkB (%d%%) $(downloadof) %dkB @ %d.%01dkB/s" " (%d %s%s remaining)" "$Download2URLActual" "$PLUGINSDIR\Downloaded-2\${Download2Name}" /END
+		${EndIf}
+		
+		${If} $intWarnOnZoneCrossing != 0
+			WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Internet Settings\" "WarnonZoneCrossing" $intWarnOnZoneCrossing
+		${EndIf}
+		
+		SetDetailsPrint both
+		DetailPrint $InstallingStatusString
+		SetDetailsPrint ListOnly
+		Pop $DOWNLOAD2RESULT
+		${If} $DOWNLOAD2RESULT == "OK"
+			Rename "$PLUGINSDIR\Downloaded-2\${Download2Name}" "$PLUGINSDIR\Downloaded-2\${Download2Filename}"
+			StrCpy $DOWNLOADED2FILE "$PLUGINSDIR\Downloaded-2\${Download2Filename}"
+			!ifdef Download2MD5
+				md5dll::GetMD5File "$DOWNLOADED2FILE"
+				Pop $R0
+				StrCpy $MD5MISMATCH "false"
+				${If} $R0 != ${Download2MD5}
+					${If} $SECONDDOWNLOAD2ATTEMPT != true
+						StrCpy $SECONDDOWNLOAD2ATTEMPT true
+						Goto Download2TheFile
+					${EndIf}
+					StrCpy $MD5MISMATCH "true"
+
+					Delete "$INTERNET_CACHE\${Download2FileName}"
+					Delete "$PLUGINSDIR\Downloaded-2\${Download2Filename}"
+					SetDetailsPrint textonly
+					DetailPrint ""
+					SetDetailsPrint listonly
+					${TBProgress_State} Error
+					${If} $(downloadfilemismatch) != ""
+						${WordReplace} `$(downloadfilemismatch)` "${DownloadName}" "${Download2Name}" "+" $0
+						MessageBox MB_OK|MB_ICONEXCLAMATION `$0`
+						DetailPrint $0
+					${Else}
+						MessageBox MB_OK|MB_ICONEXCLAMATION `The downloaded copy of ${Download2Name} is not valid and can not be installed.  Please try installing again.`
+						DetailPrint `The downloaded copy of ${Download2Name} is not valid and can not be installed.  Please try installing again.`
+					${EndIf}
+					${TBProgress_State} NoProgress
+					Abort
+				${EndIf}
+			!endif
+		${Else}
+			Delete "$INTERNET_CACHE\${Download2FileName}"
+			Delete "$PLUGINSDIR\Downloaded-2\${Download2Filename}"
+			StrCpy $0 $Download2URLActual 
+			
+			;Use backup PA.c download server if necessary
+			${WordFind} "$Download2URLActual" "http://downloads.portableapps.com" "#" $R0
+			${If} $R0 == 1
+				${WordReplace} "$Download2URLActual" "http://downloads.portableapps.com" "http://downloads2.portableapps.com" "+" $Download2URLActual
+				Goto Download2TheFile
+			${EndIf}
+			
+			${If} $SECONDDOWNLOAD2ATTEMPT != true
+			${AndIf} $DOWNLOAD2RESULT != "Cancelled"
+				StrCpy $SECONDDOWNLOAD2ATTEMPT true
+				Goto Download2TheFile
+			${EndIf}
+			SetDetailsPrint textonly
+				DetailPrint ""
+			SetDetailsPrint listonly
+			${TBProgress_State} Error
+			${If} $(downloadfailed) != ""
+				${WordReplace} `$(downloadfailed)` "${DownloadName}" "${Download2Name}" "+" $0
+				MessageBox MB_OK|MB_ICONEXCLAMATION $0
+				DetailPrint $0
+			${Else}
+				MessageBox MB_OK|MB_ICONEXCLAMATION `The installer was unable to download ${Download2Name}.  The installation of the portable app will be incomplete without it. Please try installing again. (ERROR: $DOWNLOADRESULT)`
+				DetailPrint `The installer was unable to download ${Download2Name}.  The installation of the portable app will be incomplete without it. Please try installing again. (ERROR: $DOWNLOAD2RESULT)`
 			${EndIf}
 			${TBProgress_State} NoProgress
 			Abort
@@ -1236,6 +1523,15 @@ FunctionEnd
 		File /r /x PortableApps.comInstallerCustom.nsh /x PortableApps.comInstallerPluginCustom.nsh "..\..\Other\Source\PortableApps.comInstaller*.*"
 	!endif
 
+	;=== Extract 7-Zip if we're using it
+	!ifdef bolUses7Zip
+		CreateDirectory "$INSTDIR\7zTemp"
+		SetOutPath "$INSTDIR\7zTemp"
+		File "${NSISDIR}\..\7zip\7z.exe"
+		File "${NSISDIR}\..\7zip\7z.dll"
+		SetOutPath $INSTDIR
+	!endif
+	
 	;=== Extract Download Files
 	!ifdef DownloadURL
 		!ifdef DownloadTo
@@ -1243,30 +1539,7 @@ FunctionEnd
 			CopyFiles /SILENT "$DOWNLOADEDFILE" "$INSTDIR\${DownloadTo}"
 		!else
 		;Process the file
-			!ifdef Extract1To
-				;Standard extract
-
-				!macro ExtractTo _n
-					!ifdef Extract${_n}To
-						CreateDirectory "$INSTDIR\${Extract${_n}To}"
-						nsisunz::UnzipToLog /file "${Extract${_n}File}" "$DOWNLOADEDFILE" "$INSTDIR\${Extract${_n}To}"
-						Pop $R0
-						${If} $R0 <> "OK"
-							DetailPrint "ERROR: $R0 (${DownloadFilename} - ${Extract${_n}File})"
-							Abort
-						${EndIf}
-					!endif
-				!macroend
-				${!insertmacro1-10} ExtractTo
-			!endif
 			!ifdef AdvancedExtract1To
-				;Advanced extract with 7zip
-				CreateDirectory "$INSTDIR\7zTemp"
-				SetOutPath "$INSTDIR\7zTemp"
-				File "${NSISDIR}\..\7zip\7z.exe"
-				File "${NSISDIR}\..\7zip\7z.dll"
-				SetOutPath $INSTDIR
-
 				; The original code didn't have a !ifdef for 1, but we
 				; know it will be defined, and it doesn't matter if we
 				; check if it is because it will be.
@@ -1286,19 +1559,8 @@ FunctionEnd
 					!endif
 				!macroend
 				${!insertmacro1-10} AdvancedExtractFilter
-
-				Delete "$INSTDIR\7zTemp\7z.exe"
-				Delete "$INSTDIR\7zTemp\7z.dll"
-				RMDir "$INSTDIR\7zTemp"
 			!endif
 			!ifdef DoubleExtractFilename
-				;Double extract using 7zip
-				CreateDirectory "$INSTDIR\7zTemp"
-				SetOutPath "$INSTDIR\7zTemp"
-				File "${NSISDIR}\..\7zip\7z.exe"
-				File "${NSISDIR}\..\7zip\7z.dll"
-				SetOutPath $INSTDIR
-
 				CreateDirectory "$PLUGINSDIR\Downloaded2"
 				nsExec::Exec `"$INSTDIR\7zTemp\7z.exe" x "$DOWNLOADEDFILE" -o"$PLUGINSDIR\Downloaded2" "${DoubleExtractFilename}" -aoa -y`
 				Pop $R0
@@ -1326,10 +1588,65 @@ FunctionEnd
 					!endif
 				!macroend
 				${!insertmacro1-10} DoubleExtractTo
+			!endif
+		!endif
+	!endif
+	
+	!ifdef Download2URL
+		!ifdef Download2To
+			;Just copy the file
+			CopyFiles /SILENT "$DOWNLOADED2FILE" "$INSTDIR\${Download2To}"
+		!else
+		;Process the file
+			!ifdef Download2AdvancedExtract1To
+				; The original code didn't have a !ifdef for 1, but we
+				; know it will be defined, and it doesn't matter if we
+				; check if it is because it will be.
+				!macro Download2AdvancedExtractFilter _n
+					!ifdef Download2AdvancedExtract${_n}To
+						CreateDirectory "$INSTDIR\${Download2AdvancedExtract${_n}To}"
+						${If} "${Download2AdvancedExtract${_n}Filter}" == "**"
+							nsExec::Exec `"$INSTDIR\7zTemp\7z.exe" x -r "$DOWNLOADED2FILE" -o"$INSTDIR\${Download2AdvancedExtract${_n}To}" * -aoa -y`
+						${Else}
+							nsExec::Exec `"$INSTDIR\7zTemp\7z.exe" x "$DOWNLOADED2FILE" -o"$INSTDIR\${Download2AdvancedExtract${_n}To}" "${AdvancedExtract${_n}Filter}" -aoa -y`
+						${EndIf}
+						Pop $R0
+						${If} $R0 <> 0
+							DetailPrint "ERROR: (${Download2Filename} > ${Download2AdvancedExtract${_n}To})"
+							Abort
+						${EndIf}
+					!endif
+				!macroend
+				${!insertmacro1-10} Download2AdvancedExtractFilter
+			!endif
+			!ifdef Download2DoubleExtractFilename
+				CreateDirectory "$PLUGINSDIR\Downloaded-22"
+				nsExec::Exec `"$INSTDIR\7zTemp\7z.exe" x "$DOWNLOADED2FILE" -o"$PLUGINSDIR\Downloaded-22" "${Download2DoubleExtractFilename}" -aoa -y`
+				Pop $R0
+				${If} $R0 <> 0
+					DetailPrint "ERROR: (${Download2Filename} > ${Download2DoubleExtractFilename})"
+					Abort
+				${EndIf}
 
-				Delete "$INSTDIR\7zTemp\7z.exe"
-				Delete "$INSTDIR\7zTemp\7z.dll"
-				RMDir "$INSTDIR\7zTemp"
+				; The original code didn't have a !ifdef for 1, but we
+				; know it will be defined, and it doesn't matter if we
+				; check if it is because it will be.
+				!macro Download2DoubleExtractTo _n
+					!ifdef Download2DoubleExtract${_n}To
+						CreateDirectory "$INSTDIR\${Download2DoubleExtract${_n}To}"
+						${If} "${Download2DoubleExtract${_n}Filter}" == "**"
+							nsExec::Exec `"$INSTDIR\7zTemp\7z.exe" x -r "$PLUGINSDIR\Downloaded-22\${Download2DoubleExtractFilename}" -o"$INSTDIR\${Download2DoubleExtract${_n}To}" * -aoa -y`
+						${Else}
+							nsExec::Exec `"$INSTDIR\7zTemp\7z.exe" x "$PLUGINSDIR\Downloaded-22\${Download2DoubleExtractFilename}" -o"$INSTDIR\${Download2DoubleExtract${_n}To}" "${DoubleExtract${_n}Filter}" -aoa -y`
+						${EndIf}
+						Pop $R0
+						${If} $R0 <> 0
+							DetailPrint "ERROR: (${Download2DoubleExtractFilename} > ${Download2DoubleExtract${_n}To})"
+							Abort
+						${EndIf}
+					!endif
+				!macroend
+				${!insertmacro1-10} Download2DoubleExtractTo
 			!endif
 		!endif
 	!endif
@@ -1355,6 +1672,13 @@ FunctionEnd
 		!insertmacro CustomCodePostInstall
 	!endif
 	;=== END: POST-INSTALL CODE ===
+	
+	;Remove 7-Zip if we used it
+	!ifdef bolUses7Zip
+		Delete "$INSTDIR\7zTemp\7z.exe"
+		Delete "$INSTDIR\7zTemp\7z.dll"
+		RMDir "$INSTDIR\7zTemp"
+	!endif
 
 	!ifndef PLUGININSTALLER
 		;=== Refresh PortableApps.com Menu (not final version)
@@ -1396,9 +1720,6 @@ FunctionEnd
 	!endif
 		DetailPrint $InstallingStatusString
 		SetDetailsPrint listonly
-		Delete "$INSTDIR\7zTemp\7z.exe"
-		Delete "$INSTDIR\7zTemp\7z.dll"
-		RMDir "$INSTDIR\7zTemp"
 
 !ifdef LICENSEAGREEMENT
 	CreateDirectory "$INSTDIR\Data\PortableApps.comInstaller"
@@ -1411,7 +1732,12 @@ FunctionEnd
 !endif
 
 !ifndef PLUGININSTALLER
-	DeleteINISec "$INSTDIR\App\AppInfo\appinfo.ini" "Installer"
+	WriteINIStr "$INSTDIR\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "Info2" "This file was generated by the PortableApps.com Installer wizard and modified by the official PortableApps.com Installer TM Rare Ideas, LLC as the app was installed."
+	WriteINIStr "$INSTDIR\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "Run" "true"
+	WriteINIStr "$INSTDIR\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "InstallerVersion" "${PORTABLEAPPSINSTALLERVERSION}"
+	${GetTime} "" "L" $R0 $R1 $R2 $R3 $R4 $R5 $R6
+	WriteINIStr "$INSTDIR\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "InstallDate" "$R2-$R1-$R0"
+	WriteINIStr "$INSTDIR\App\AppInfo\pac_installer_log.ini" "PortableApps.comInstaller" "InstallTime" "$R4:$R5:$R6"
 !endif
 
 	${If} $bolLogFile == true
