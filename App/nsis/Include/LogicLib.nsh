@@ -47,13 +47,15 @@
 ;       Case-sensitive string tests:
 ;         a S== b; a S!= b
 ;       Standard (built-in) signed integer tests:
-;         a = b; a <> b; a < b; a >= b; a > b; a <= b
+;         a = b; a <> b; a < b; a >= b; a > b; a <= b; a & b
 ;       Standard (built-in) unsigned integer tests:
 ;         a U< b; a U>= b; a U> b; a U<= b
 ;       64-bit integer tests (using System.dll):
 ;         a L= b; a L<> b; a L< b; a L>= b; a L> b; a L<= b
 ;       ptrdiff_t integer tests
 ;         a P= b; a P<> b; a P< b; a P>= b; a P> b; a P<= b
+;       size_t integer tests
+;         a Z= b; a Z<> b; a Z< b; a Z>= b; a Z> b; a Z<= b
 ;       Built-in NSIS flag tests:
 ;         ${Abort}; ${Errors}; ${RebootFlag}; ${Silent}
 ;       Built-in NSIS other tests:
@@ -204,6 +206,12 @@
     !insertmacro _> `${_a}` `${_b}` `${_f}` `${_t}`
   !macroend
 
+  !macro _& _a _b _t _f
+    !insertmacro _LOGICLIB_TEMP
+    IntOp $_LOGICLIB_TEMP `${_a}` & `${_b}`
+    !insertmacro _<> $_LOGICLIB_TEMP 0 `${_t}` `${_f}`
+  !macroend
+
   ; Unsigned integer tests (NB: no need for extra equality tests)
   !macro _U< _a _b _t _f
     IntCmpU `${_a}` `${_b}` `${_f}` `${_t}` `${_f}`
@@ -253,9 +261,9 @@
     !insertmacro _L> `${_a}` `${_b}` `${_f}` `${_t}`
   !macroend
 
-  ; ptrdiff_t tests
+  ; ptrdiff_t & size_t tests
   !macro LogicLib_PtrDiffTest _o _a _b _t _f
-    !if ${NSIS_PTR_SIZE} <= 4
+    !if "${NSIS_PTR_SIZE}" <= 4
       !insertmacro _${_o} `${_a}` `${_b}` `${_t}` `${_f}`
     !else
       !insertmacro _L${_o} `${_a}` `${_b}` `${_t}` `${_f}`
@@ -278,6 +286,25 @@
   !macroend
   !macro _P<= _a _b _t _f
     !insertmacro LogicLib_PtrDiffTest <= `${_a}` `${_b}` `${_t}` `${_f}`
+  !macroend
+  !include Util.nsh
+  !macro _Z= _a _b _t _f
+    !insertmacro LogicLib_PtrDiffTest = `${_a}` `${_b}` `${_t}` `${_f}`
+  !macroend
+  !macro _Z<> _a _b _t _f
+    !insertmacro LogicLib_PtrDiffTest <> `${_a}` `${_b}` `${_t}` `${_f}`
+  !macroend
+  !macro _Z< _a _b _t _f
+    !insertmacro IntPtrCmpU `${_a}` `${_b}` `${_f}` `${_t}` `${_f}`
+  !macroend
+  !macro _Z>= _a _b _t _f
+    !insertmacro IntPtrCmpU `${_a}` `${_b}` `${_t}` `${_f}` `${_t}`
+  !macroend
+  !macro _Z> _a _b _t _f
+    !insertmacro IntPtrCmpU `${_a}` `${_b}` `${_f}` `${_f}` `${_t}`
+  !macroend
+  !macro _Z<= _a _b _t _f
+    !insertmacro IntPtrCmpU `${_a}` `${_b}` `${_t}` `${_t}` `${_f}`
   !macroend
 
   ; Flag tests
@@ -643,7 +670,7 @@
         !error "Cannot use Case following a CaseElse"
       !endif
       Goto ${${_Logic}EndSelect}                          ; Go to EndSelect (Ends the previous Case)
-      !define /IfNDef _LogicLib_EndSelectLabelUsed
+      !define /IfNDef _LogicLib_EndSelectLabelUsed_${_Logic}
       ${${_Logic}Else}:                                   ; Place the Else label
       !undef ${_Logic}Else                                ; and remove it
     !else
@@ -732,9 +759,9 @@
       !undef ${_Logic}Else                                ; and remove it
     !endif
     !ifdef ${_Logic}EndSelect                             ; This won't be set if there weren't any cases
-      !ifdef _LogicLib_EndSelectLabelUsed                 ; There is no jump to ${${_Logic}EndSelect}: if there is only one Case
+      !ifdef _LogicLib_EndSelectLabelUsed_${_Logic}                 ; There is no jump to ${${_Logic}EndSelect}: if there is only one Case
         ${${_Logic}EndSelect}:                            ; Place the EndSelect
-        !undef _LogicLib_EndSelectLabelUsed
+        !undef _LogicLib_EndSelectLabelUsed_${_Logic}
       !endif
       !undef ${_Logic}EndSelect                           ; and remove it
     !endif
