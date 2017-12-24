@@ -74,17 +74,17 @@ OutFile "..\..\..\${FILENAME}.paf.exe"
 !else
 	InstallDir "\${APPID}"
 !endif
-Caption "${PORTABLEAPPNAME} | GathSystems.com Installer"
+Caption "${PORTABLEAPPNAME} | MachinaCore.com Installer"
 VIProductVersion "${VERSION}"
 VIAddVersionKey ProductName "${PORTABLEAPPNAME}"
 VIAddVersionKey Comments "${INSTALLERCOMMENTS}"
-VIAddVersionKey CompanyName "GathSystems.com"
-VIAddVersionKey LegalCopyright "2007-2017 GathSystems.com, GathSystems.com Installer ${PORTABLEAPPSINSTALLERVERSION}"
+VIAddVersionKey CompanyName "MachinaCore.com"
+VIAddVersionKey LegalCopyright "2007-2017 MachinaCore.com, MachinaCore.com Installer ${PORTABLEAPPSINSTALLERVERSION}"
 VIAddVersionKey FileDescription "${PORTABLEAPPNAME}"
 VIAddVersionKey FileVersion "${VERSION}"
 VIAddVersionKey ProductVersion "${VERSION}"
 VIAddVersionKey InternalName "${PORTABLEAPPNAME}"
-VIAddVersionKey LegalTrademarks "${INSTALLERADDITIONALTRADEMARKS}GathSystems.com"
+VIAddVersionKey LegalTrademarks "${INSTALLERADDITIONALTRADEMARKS}MachinaCore.com"
 VIAddVersionKey OriginalFilename "${FILENAME}.paf.exe"
 VIAddVersionKey PortableApps.comInstallerVersion "${PORTABLEAPPSINSTALLERVERSION}"
 VIAddVersionKey PortableApps.comFormatVersion "${PORTABLEAPPS.COMFORMATVERSION}"
@@ -150,7 +150,7 @@ Icon "PortableApps.comInstaller.ico"
 !define MUI_HEADERIMAGE_RIGHT
 
 ;=== Icon & Stye ===
-BrandingText "GathSystems.com®"
+BrandingText "MachinaCore.com®"
 
 ;=== Pages
 !ifdef COPYLOCALFILES
@@ -406,7 +406,7 @@ Function .onInit
 	${AndIf} $R0 != "line.paf[7].exe"
 	${AndIf} $R0 != "line.paf[8].exe"
 	${AndIf} $R0 != "line.paf[9].exe"
-		MessageBox MB_OK|MB_ICONSTOP `GathSystems.com Installers that download files must end with "_online.paf.exe".  This is to ensure that users always know that an installer downloads files before it is run.  Please rename the file to end in _online.paf.exe before running.`
+		MessageBox MB_OK|MB_ICONSTOP `MachinaCore.com Installers that download files must end with "_online.paf.exe".  This is to ensure that users always know that an installer downloads files before it is run.  Please rename the file to end in _online.paf.exe before running.`
 		Abort
 	${EndIf}
 	!endif
@@ -1055,8 +1055,8 @@ Function GetDrivesCallBack
 
 	${If} ${FileExists} $9PortableApps
 		StrCpy $FOUNDPORTABLEAPPSPATH $9PortableApps	
-	${OrIf} ${FileExists} $9GathSystems.com\PortableApps
-		StrCpy $FOUNDPORTABLEAPPSPATH $9GathSystems.com\PortableApps
+	${OrIf} ${FileExists} $9MachinaCore.com\PortableApps
+		StrCpy $FOUNDPORTABLEAPPSPATH $9MachinaCore.com\PortableApps
 	${EndIf}
 
 	Push $0
@@ -1211,9 +1211,9 @@ FunctionEnd
 			StrCpy $0 $DownloadURLActual 
 			
 			;Use backup PA.c download server if necessary
-			${WordFind} "$DownloadURLActual" "http://www.gathsystems.com/downloads" "#" $R0
+			${WordFind} "$DownloadURLActual" "http://www.machinacore.com/downloads" "#" $R0
 			${If} $R0 == 1
-				${WordReplace} "$DownloadURLActual" "http://www.gathsystems.com/downloads" "http://www.gathsystems.com/downloads2" "+" $DownloadURLActual
+				${WordReplace} "$DownloadURLActual" "http://www.machinacore.com/downloads" "http://www.machinacore.com/downloads2" "+" $DownloadURLActual
 				Goto DownloadTheFile
 			${EndIf}
 			
